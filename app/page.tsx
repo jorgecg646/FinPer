@@ -4,6 +4,8 @@ import { Topbar, BalanceCard, StatCards } from "@/components/finance/dashboard"
 import { RecentTransactions } from "@/components/finance/transactions"
 import { MonthlyComparisonChart, NetSavingsTrendChart, FinancialOverviewRatioChart, YearSelector } from "@/components/finance/charts"
 
+import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
+
 export const dynamic = "force-dynamic"
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
@@ -17,7 +19,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ y
     <LayoutShell balance={summary.balance}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Topbar />
-        <div className="self-end sm:self-auto">
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          <CurrencySelector />
+          <PdfExporter summary={summary} transactions={transactions} />
           <YearSelector selectedYear={selectedYear} availableYears={summary.availableYears} />
         </div>
       </div>

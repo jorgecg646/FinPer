@@ -2,21 +2,70 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
-import { Home, ArrowUpCircle, ArrowDownCircle, User, Bell, X, Menu, LogOut, LogIn } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, CreditCard, Sun, Moon } from "lucide-react"
 import { user as fallbackUser } from "@/lib/finance-data"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
+import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav items shared by Sidebar and MobileNav
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { id: "home",     label: "Inicio",   icon: Home,            href: "/" },
-  { id: "income",   label: "Ingresos", icon: ArrowUpCircle,   href: "/ingresos" },
-  { id: "expenses", label: "Gastos",   icon: ArrowDownCircle, href: "/gastos" },
-  { id: "profile",  label: "Perfil",   icon: User,            href: "/perfil" },
+  { id: "home",          label: "Inicio",        icon: Home,            href: "/" },
+  { id: "income",        label: "Ingresos",      icon: ArrowUpCircle,   href: "/ingresos" },
+  { id: "expenses",      label: "Gastos",        icon: ArrowDownCircle, href: "/gastos" },
+  { id: "budgets",       label: "Presupuestos",  icon: Target,          href: "/presupuestos" },
+  { id: "subscriptions", label: "Suscripciones", icon: CreditCard,      href: "/suscripciones" },
+  { id: "profile",       label: "Perfil",        icon: User,            href: "/perfil" },
 ]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ThemeToggle — Dark / Light Mode Switcher
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function ThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">("light")
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("finflow-theme") as "dark" | "light"
+      if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        setTheme("dark")
+        document.documentElement.classList.add("dark")
+      } else {
+        setTheme("light")
+        document.documentElement.classList.remove("dark")
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  function toggleTheme() {
+    const nextTheme = theme === "light" ? "dark" : "light"
+    setTheme(nextTheme)
+    try { localStorage.setItem("finflow-theme", nextTheme) } catch {}
+
+    if (nextTheme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground transition-colors shadow-xs cursor-pointer"
+    >
+      {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
+    </button>
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sidebar — desktop left panel
@@ -38,24 +87,27 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">FF</span>
           <span className="text-xl font-bold tracking-tight text-foreground">FinFlow</span>
         </div>
-        {onClose && (
-          <button type="button" onClick={onClose} aria-label="Cerrar menú"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary lg:hidden">
-            <X className="h-4 w-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {onClose && (
+            <button type="button" onClick={onClose} aria-label="Cerrar menú"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary lg:hidden">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation links */}
-      <nav className="mt-10 flex flex-col gap-1" aria-label="Principal">
+      <nav className="mt-8 flex flex-col gap-1" aria-label="Principal">
         {NAV_ITEMS.map(({ id, label, icon: Icon, href }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
             <Link key={id} href={href} onClick={onClose} aria-current={isActive ? "page" : undefined}
-              className={`flex items-center justify-between rounded-full px-4 py-3 text-sm font-medium transition-colors ${
+              className={`flex items-center justify-between rounded-full px-4 py-2.5 text-xs font-semibold transition-colors ${
                 isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               }`}>
-              <span className="flex items-center gap-3"><Icon className="h-5 w-5" aria-hidden="true" />{label}</span>
+              <span className="flex items-center gap-3"><Icon className="h-4.5 w-4.5" aria-hidden="true" />{label}</span>
               {isActive && <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />}
             </Link>
           )
@@ -127,9 +179,12 @@ export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-primary-foreground">FF</span>
         <span className="text-base font-bold tracking-tight text-foreground">FinFlow</span>
       </div>
-      <button type="button" onClick={user ? undefined : login} aria-label="Perfil o Inicio de sesión">
-        <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-9 w-9 rounded-full object-cover ring-2 ring-card" />
-      </button>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <button type="button" onClick={user ? undefined : login} aria-label="Perfil o Inicio de sesión">
+          <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-8 w-8 rounded-full object-cover ring-2 ring-card" />
+        </button>
+      </div>
     </header>
   )
 }
@@ -147,8 +202,8 @@ export function MobileNav() {
         const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
         return (
           <Link key={id} href={href} aria-current={isActive ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-medium transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-            <Icon className={`h-5 w-5 transition-transform ${isActive ? "scale-110" : ""}`} aria-hidden="true" />
+            className={`flex flex-1 flex-col items-center gap-1 py-2 text-[9px] font-semibold transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+            <Icon className={`h-4.5 w-4.5 transition-transform ${isActive ? "scale-110" : ""}`} aria-hidden="true" />
             {label}
           </Link>
         )
@@ -183,7 +238,7 @@ export function LayoutShell({ balance, children }: { balance: number; children: 
         {/* Main content */}
         <main className="flex-1 min-w-0 flex flex-col pb-20 lg:pb-0">
           <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />
-          <div className="flex-1 px-4 py-6 sm:px-8">{children}</div>
+          <div className="flex-1 px-4 py-6 sm:px-8" id="main-dashboard-report">{children}</div>
         </main>
 
         <MobileNav />

@@ -11,23 +11,76 @@ import { useAuth } from "@/components/auth/netlify-auth"
 // Topbar — desktop-only greeting header
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { X, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Topbar — desktop-only greeting header with interactive Notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function Topbar() {
   const { user: authUser } = useAuth()
   const displayName = authUser?.name || user.name
   const displayAvatar = authUser?.avatar || user.avatar
+  const [open, setOpen] = useState(false)
+  const [unread, setUnread] = useState(true)
+
+  const sampleNotifications = [
+    { id: "n1", title: "Autenticación activa", desc: authUser ? `Iniciado como ${authUser.email}` : "Cuenta local activa", icon: ShieldCheck, color: "text-positive" },
+    { id: "n2", title: "Balance mensual", desc: "Tus estados y resúmenes están actualizados", icon: CheckCircle, color: "text-primary" },
+    { id: "n3", title: "Consejo de ahorro", desc: "Revisa la pestaña de Presupuestos para fijar metas", icon: AlertTriangle, color: "text-amber-500" },
+  ]
 
   return (
-    <header className="hidden items-start justify-between gap-4 lg:flex">
+    <header className="hidden items-start justify-between gap-4 lg:flex relative">
       <div>
         <p className="text-sm text-muted-foreground">Buenos días,</p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground text-balance">{displayName}</h1>
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" aria-label="Notificaciones" id="topbar-notifications"
-          className="relative flex h-11 w-11 items-center justify-center rounded-full bg-card shadow-sm transition-colors hover:bg-secondary">
-          <Bell className="h-5 w-5 text-foreground" aria-hidden="true" />
-          <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-destructive" />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => { setOpen(!open); setUnread(false) }}
+            aria-label="Notificaciones"
+            id="topbar-notifications"
+            className="relative flex h-11 w-11 items-center justify-center rounded-full bg-card shadow-sm transition-colors hover:bg-secondary cursor-pointer"
+          >
+            <Bell className="h-5 w-5 text-foreground" aria-hidden="true" />
+            {unread && <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-destructive animate-pulse" />}
+          </button>
+
+          {/* Notifications Popover Dropdown */}
+          {open && (
+            <div className="absolute right-0 top-14 z-50 w-80 rounded-3xl border border-border bg-card p-4 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <span className="text-xs font-bold text-foreground">Notificaciones & Alertas</span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2.5">
+                {sampleNotifications.map((n) => {
+                  const Icon = n.icon
+                  return (
+                    <div key={n.id} className="flex items-start gap-3 rounded-2xl bg-background p-3 border border-border/40">
+                      <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${n.color}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-foreground">{n.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{n.desc}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         <img src={displayAvatar} alt={`Foto de ${displayName}`}
           className="h-11 w-11 rounded-full object-cover ring-2 ring-card" />
       </div>

@@ -87,7 +87,7 @@ export function YearSelector({
           className="cursor-pointer appearance-none bg-transparent pr-5 text-xs font-bold text-foreground outline-none text-center leading-none"
         >
           {availableYears.map((y) => (
-            <option key={y} value={y} className="bg-card text-foreground">
+            <option key={y} value={y} className="bg-card text-foreground dark:bg-zinc-900 dark:text-zinc-100 font-semibold">
               {y}
             </option>
           ))}

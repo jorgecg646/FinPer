@@ -153,12 +153,10 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   function login() {
-    const widget = getWidget()
-    if (widget) {
-      widget.open("login")
-    } else {
-      // fallback redirect
-      window.location.href = NETLIFY_IDENTITY_URL
+    if (typeof window !== "undefined") {
+      // Direct redirect to Google OAuth login page
+      const googleOAuthUrl = `${NETLIFY_IDENTITY_URL}/authorize?provider=google`
+      window.location.href = googleOAuthUrl
     }
   }
 

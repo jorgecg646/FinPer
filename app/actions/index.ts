@@ -25,12 +25,29 @@ const transactions = pgTable("transactions", {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
 })
 const db = drizzle(pool, { schema: { transactions } })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Server-side Intelligent Cache & Mutation Tracking
+// ─────────────────────────────────────────────────────────────────────────────
+
+type CacheEntry = {
+  timestamp: number
+  data: Tx[]
+}
+
+const memoryCache = new Map<string, CacheEntry>()
+const lastMutationTimes = new Map<string, number>()
+
+function invalidateUserCache(userId: string) {
+  lastMutationTimes.set(userId, Date.now())
+}
+
 /**
  * Get active authenticated user ID / email from cookies.
- * Dynamically scopes DB queries and inserts to the logged-in user!
  */
 export async function getActiveUserId(): Promise<string> {
   try {
@@ -116,17 +133,35 @@ function validate(input: TxInput) {
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Transaction actions — Dynamically Scoped to Active User
+// Transaction actions — Cached & Optimized
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getTransactions(): Promise<Tx[]> {
   const activeUserId = await getActiveUserId()
+  const lastMutation = lastMutationTimes.get(activeUserId) || 0
+  const cached = memoryCache.get(activeUserId)
+
+  // Serve instantly from cache if no mutations occurred since last fetch
+  if (cached && cached.timestamp > lastMutation) {
+    return cached.data
+  }
+
+  // Fetch fresh data from DB
   const rows = await db
     .select()
     .from(transactions)
     .where(eq(transactions.userId, activeUserId))
     .orderBy(desc(transactions.occurredAt), desc(transactions.id))
-  return rows.map(toTx)
+  
+  const result = rows.map(toTx)
+
+  // Store in cache
+  memoryCache.set(activeUserId, {
+    timestamp: Date.now(),
+    data: result,
+  })
+
+  return result
 }
 
 export async function getSummary(targetYear?: number): Promise<Summary> {
@@ -189,6 +224,7 @@ export async function createTransaction(input: TxInput) {
     amount: amount.toFixed(2),
     occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
   })
+  invalidateUserCache(activeUserId)
   revalidatePath("/")
 }
 
@@ -199,24 +235,25 @@ export async function updateTransaction(id: number, input: TxInput) {
     .update(transactions)
     .set({ name, category, type, amount: amount.toFixed(2), ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}) })
     .where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
+  invalidateUserCache(activeUserId)
   revalidatePath("/")
 }
 
 export async function deleteTransaction(id: number) {
   const activeUserId = await getActiveUserId()
   await db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
+  invalidateUserCache(activeUserId)
   revalidatePath("/")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile stats — Dynamically Scoped to Active User
+// Profile stats — Cached & Scoped to Active User
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getProfileStats(): Promise<ProfileStats> {
-  const activeUserId = await getActiveUserId()
-  const rows = await db.select().from(transactions).where(eq(transactions.userId, activeUserId))
+  const txs = await getTransactions()
 
-  if (rows.length === 0) {
+  if (txs.length === 0) {
     return { totalTransactions: 0, totalIncome: 0, totalExpenses: 0, balance: 0, avgMonthlyIncome: 0, avgMonthlyExpense: 0, topCategory: null, monthsActive: 0 }
   }
 
@@ -225,14 +262,13 @@ export async function getProfileStats(): Promise<ProfileStats> {
   const categoryMap = new Map<string, number>()
   const months = new Set<string>()
 
-  for (const r of rows) {
-    const amount = Number(r.amount)
-    if (r.type === "income") totalIncome += amount
+  for (const t of txs) {
+    if (t.type === "income") totalIncome += t.amount
     else {
-      totalExpenses += amount
-      categoryMap.set(r.category, (categoryMap.get(r.category) ?? 0) + amount)
+      totalExpenses += t.amount
+      categoryMap.set(t.category, (categoryMap.get(t.category) ?? 0) + t.amount)
     }
-    const d = r.occurredAt as Date
+    const d = new Date(t.occurredAt)
     months.add(`${d.getFullYear()}-${d.getMonth()}`)
   }
 
@@ -240,7 +276,7 @@ export async function getProfileStats(): Promise<ProfileStats> {
   const topCategory = [...categoryMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
   return {
-    totalTransactions: rows.length,
+    totalTransactions: txs.length,
     totalIncome,
     totalExpenses,
     balance: totalIncome - totalExpenses,
