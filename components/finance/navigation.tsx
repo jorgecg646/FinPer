@@ -67,6 +67,19 @@ export function ThemeToggle() {
   )
 }
 
+export function UserAvatar({ name, src, className = "h-9 w-9" }: { name: string; src?: string; className?: string }) {
+  if (src && src.trim() && src !== "/avatar.png" && src !== "/placeholder.svg") {
+    return <img src={src} alt={`Foto de ${name}`} className={`${className} rounded-full object-cover shrink-0 ring-2 ring-card shadow-xs`} />
+  }
+  return (
+    <div className={`${className} flex shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground border border-border/80 shadow-xs`}>
+      <User className="h-4 w-4" />
+    </div>
+  )
+}
+
+import { PrivacyModal } from "@/components/auth/privacy-modal"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sidebar — desktop left panel
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +87,7 @@ export function ThemeToggle() {
 export function Sidebar({ balance, onClose }: { balance: number; onClose?: () => void }) {
   const pathname = usePathname()
   const { user, login, logout } = useAuth()
+  const [privacyOpen, setPrivacyOpen] = useState(false)
 
   const displayName = user?.name || fallbackUser.name
   const displayAvatar = user?.avatar || fallbackUser.avatar
@@ -81,11 +95,17 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-6">
+      <PrivacyModal
+        isOpen={privacyOpen}
+        onClose={() => setPrivacyOpen(false)}
+        onAcceptAndLogin={login}
+      />
+
       {/* Logo + close (mobile) */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">FF</span>
-          <span className="text-xl font-bold tracking-tight text-foreground">FinFlow</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground shadow-xs">BN</span>
+          <span className="text-xl font-bold tracking-tight text-foreground">BudgetNext</span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -118,7 +138,7 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
       <div className="mt-auto flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-border p-3">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-9 w-9 rounded-full object-cover shrink-0" />
+            <UserAvatar name={displayName} src={displayAvatar} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-foreground">{displayName}</p>
               <p className="truncate text-[10px] text-muted-foreground">{displaySub}</p>
@@ -131,17 +151,17 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
               onClick={logout}
               title="Cerrar sesión"
               aria-label="Cerrar sesión"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>
           ) : (
             <button
               type="button"
-              onClick={login}
+              onClick={() => setPrivacyOpen(true)}
               title="Iniciar sesión con Google"
               aria-label="Iniciar sesión con Google"
-              className="flex h-7 px-2.5 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card text-[10px] font-bold text-foreground hover:bg-secondary transition-colors shadow-xs"
+              className="flex h-7 px-2.5 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card text-[10px] font-bold text-foreground hover:bg-secondary transition-colors shadow-xs cursor-pointer"
             >
               <GoogleIcon className="h-3.5 w-3.5" />
               <span>Entrar</span>
@@ -176,13 +196,13 @@ export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-primary-foreground">FF</span>
-        <span className="text-base font-bold tracking-tight text-foreground">FinFlow</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-primary-foreground shadow-xs">BN</span>
+        <span className="text-base font-bold tracking-tight text-foreground">BudgetNext</span>
       </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <button type="button" onClick={user ? undefined : login} aria-label="Perfil o Inicio de sesión">
-          <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-8 w-8 rounded-full object-cover ring-2 ring-card" />
+          <UserAvatar name={displayName} src={displayAvatar} className="h-8 w-8" />
         </button>
       </div>
     </header>

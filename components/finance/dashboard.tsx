@@ -13,6 +13,8 @@ import { useAuth } from "@/components/auth/netlify-auth"
 
 import { X, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
 
+import { UserAvatar } from "@/components/finance/navigation"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Topbar — desktop-only greeting header with interactive Notifications
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,8 +83,7 @@ export function Topbar() {
           )}
         </div>
 
-        <img src={displayAvatar} alt={`Foto de ${displayName}`}
-          className="h-11 w-11 rounded-full object-cover ring-2 ring-card" />
+        <UserAvatar name={displayName} src={displayAvatar} className="h-11 w-11" />
       </div>
     </header>
   )

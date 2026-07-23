@@ -9,25 +9,16 @@ const jakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'FinFlow — Finanzas personales',
-  description: 'Controla tus finanzas personales: balance, ingresos, gastos, tarjetas y transacciones.',
-  generator: 'v0.app',
+  title: 'BudgetNext — Finanzas Personales',
+  description: 'Gestiona tus finanzas personales: presupuestos, suscripciones, ingresos, gastos y transacciones.',
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
       {
         url: '/icon.svg',
         type: 'image/svg+xml',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/icon.svg',
   },
 }
 

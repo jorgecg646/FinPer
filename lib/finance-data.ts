@@ -1,5 +1,5 @@
 export const user = {
-  name: "Alex Piter",
-  plan: "Premium",
-  avatar: "/avatar.png",
+  name: "Usuario",
+  plan: "Plan Personal",
+  avatar: "",
 }

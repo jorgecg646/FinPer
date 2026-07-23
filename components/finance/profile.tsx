@@ -5,6 +5,7 @@ import { Camera, Save, User, TrendingUp, TrendingDown, Activity, Calendar, Tag }
 import type { ProfileStats } from "@/app/actions"
 
 import { useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
+import { UserAvatar } from "@/components/finance/navigation"
 import { LogOut } from "lucide-react"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,8 @@ function StatItem({ icon: Icon, label, value, accent }: {
   )
 }
 
+import { PrivacyModal } from "@/components/auth/privacy-modal"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ProfileForm — edit personal info + show financial stats & Netlify Auth
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,6 +57,7 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
   const { user: authUser, login, logout } = useAuth()
   const [profile, setProfile] = useState<LocalProfile>(loadProfile)
   const [saved, setSaved]     = useState(false)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
 
   useEffect(() => { setProfile(loadProfile()) }, [])
 
@@ -76,6 +80,12 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <PrivacyModal
+        isOpen={privacyOpen}
+        onClose={() => setPrivacyOpen(false)}
+        onAcceptAndLogin={login}
+      />
+
       {/* Auth Card */}
       <section className="rounded-3xl bg-card p-6 shadow-sm border border-border/50">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -95,7 +105,7 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
             <button
               type="button"
               onClick={logout}
-              className="flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors self-start sm:self-auto"
+              className="flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors self-start sm:self-auto cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
               <span>Cerrar sesión</span>
@@ -103,8 +113,8 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
           ) : (
             <button
               type="button"
-              onClick={login}
-              className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-bold text-foreground hover:bg-secondary transition-colors shadow-xs self-start sm:self-auto"
+              onClick={() => setPrivacyOpen(true)}
+              className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-bold text-foreground hover:bg-secondary transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
             >
               <GoogleIcon className="h-4 w-4" />
               <span>Iniciar sesión con Google</span>
@@ -120,7 +130,7 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
           {/* Avatar */}
           <div className="flex items-center gap-4">
             <div className="relative">
-              <img src={profile.avatar || "/placeholder.svg"} alt="Avatar" className="h-20 w-20 rounded-full object-cover ring-4 ring-card shadow-md" />
+              <UserAvatar name={profile.name} src={profile.avatar} className="h-20 w-20 text-2xl ring-4 ring-card shadow-md" />
               <label htmlFor="avatar-upload" aria-label="Cambiar foto"
                 className="absolute -bottom-1 -right-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-primary shadow-sm transition-opacity hover:opacity-90">
                 <Camera className="h-3.5 w-3.5 text-primary-foreground" aria-hidden="true" />
