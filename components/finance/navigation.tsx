@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Home, ArrowUpCircle, ArrowDownCircle, User, Bell, X, Menu } from "lucide-react"
-import { user } from "@/lib/finance-data"
+import { Home, ArrowUpCircle, ArrowDownCircle, User, Bell, X, Menu, LogOut, LogIn } from "lucide-react"
+import { user as fallbackUser } from "@/lib/finance-data"
+import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav items shared by Sidebar and MobileNav
@@ -23,6 +24,11 @@ const NAV_ITEMS = [
 
 export function Sidebar({ balance, onClose }: { balance: number; onClose?: () => void }) {
   const pathname = usePathname()
+  const { user, login, logout } = useAuth()
+
+  const displayName = user?.name || fallbackUser.name
+  const displayAvatar = user?.avatar || fallbackUser.avatar
+  const displaySub = user?.email || fallbackUser.plan
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-6">
@@ -58,17 +64,39 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
 
       {/* User card + balance */}
       <div className="mt-auto flex flex-col gap-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-border p-3">
-          <img src={user.avatar || "/placeholder.svg"} alt={`Foto de ${user.name}`} className="h-10 w-10 rounded-full object-cover" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">{user.name}</p>
-            <p className="text-xs text-muted-foreground">{user.plan}</p>
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border p-3">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-9 w-9 rounded-full object-cover shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-foreground">{displayName}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{displaySub}</p>
+            </div>
           </div>
-          <span className="relative">
-            <Bell className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive" />
-          </span>
+
+          {user ? (
+            <button
+              type="button"
+              onClick={logout}
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={login}
+              title="Iniciar sesión con Google"
+              aria-label="Iniciar sesión con Google"
+              className="flex h-7 px-2.5 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card text-[10px] font-bold text-foreground hover:bg-secondary transition-colors shadow-xs"
+            >
+              <GoogleIcon className="h-3.5 w-3.5" />
+              <span>Entrar</span>
+            </button>
+          )}
         </div>
+
         <div className="flex items-center justify-between rounded-2xl border border-border px-3 py-2">
           <span className="text-xs text-muted-foreground">Balance</span>
           <span className="text-sm font-bold text-foreground">
@@ -85,6 +113,10 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
+  const { user, login } = useAuth()
+  const displayAvatar = user?.avatar || fallbackUser.avatar
+  const displayName = user?.name || fallbackUser.name
+
   return (
     <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
       <button type="button" onClick={onMenuOpen} aria-label="Abrir menú"
@@ -95,7 +127,9 @@ export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-primary-foreground">FF</span>
         <span className="text-base font-bold tracking-tight text-foreground">FinFlow</span>
       </div>
-      <img src={user.avatar || "/placeholder.svg"} alt={`Foto de ${user.name}`} className="h-9 w-9 rounded-full object-cover ring-2 ring-card" />
+      <button type="button" onClick={user ? undefined : login} aria-label="Perfil o Inicio de sesión">
+        <img src={displayAvatar} alt={`Foto de ${displayName}`} className="h-9 w-9 rounded-full object-cover ring-2 ring-card" />
+      </button>
     </header>
   )
 }
@@ -124,34 +158,36 @@ export function MobileNav() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LayoutShell — wraps all pages with sidebar + mobile nav
+// LayoutShell — wraps all pages with sidebar + mobile nav & NetlifyAuthProvider
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function LayoutShell({ balance, children }: { balance: number; children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <div className="sticky top-0 hidden h-screen lg:block">
-        <Sidebar balance={balance} />
+    <NetlifyAuthProvider>
+      <div className="flex min-h-screen bg-background">
+        {/* Desktop sidebar */}
+        <div className="sticky top-0 hidden h-screen lg:block">
+          <Sidebar balance={balance} />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+        )}
+        <div className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 lg:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <Sidebar balance={balance} onClose={() => setSidebarOpen(false)} />
+        </div>
+
+        {/* Main content */}
+        <main className="flex-1 min-w-0 flex flex-col pb-20 lg:pb-0">
+          <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />
+          <div className="flex-1 px-4 py-6 sm:px-8">{children}</div>
+        </main>
+
+        <MobileNav />
       </div>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
-      )}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 lg:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <Sidebar balance={balance} onClose={() => setSidebarOpen(false)} />
-      </div>
-
-      {/* Main content */}
-      <main className="flex-1 min-w-0 flex flex-col pb-20 lg:pb-0">
-        <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />
-        <div className="flex-1 px-4 py-6 sm:px-8">{children}</div>
-      </main>
-
-      <MobileNav />
-    </div>
+    </NetlifyAuthProvider>
   )
 }

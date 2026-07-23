@@ -4,6 +4,9 @@ import { useState, useEffect } from "react"
 import { Camera, Save, User, TrendingUp, TrendingDown, Activity, Calendar, Tag } from "lucide-react"
 import type { ProfileStats } from "@/app/actions"
 
+import { useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
+import { LogOut } from "lucide-react"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Local profile (name, plan, avatar stored in localStorage)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,10 +47,11 @@ function StatItem({ icon: Icon, label, value, accent }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ProfileForm — edit personal info + show financial stats
+// ProfileForm — edit personal info + show financial stats & Netlify Auth
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ProfileForm({ stats }: { stats: ProfileStats }) {
+  const { user: authUser, login, logout } = useAuth()
   const [profile, setProfile] = useState<LocalProfile>(loadProfile)
   const [saved, setSaved]     = useState(false)
 
@@ -72,6 +76,43 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Auth Card */}
+      <section className="rounded-3xl bg-card p-6 shadow-sm border border-border/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary shadow-xs">
+              <GoogleIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Autenticación Google</h2>
+              <p className="text-xs text-muted-foreground">
+                {authUser ? `Conectado como ${authUser.email}` : "Accede con tu cuenta de Google (Netlify Identity)"}
+              </p>
+            </div>
+          </div>
+
+          {authUser ? (
+            <button
+              type="button"
+              onClick={logout}
+              className="flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors self-start sm:self-auto"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Cerrar sesión</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={login}
+              className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-bold text-foreground hover:bg-secondary transition-colors shadow-xs self-start sm:self-auto"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              <span>Iniciar sesión con Google</span>
+            </button>
+          )}
+        </div>
+      </section>
+
       {/* Edit form */}
       <section className="rounded-3xl bg-card p-6 shadow-sm">
         <h2 className="text-lg font-bold text-foreground">Información personal</h2>
