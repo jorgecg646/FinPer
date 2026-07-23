@@ -1,25 +1,60 @@
 "use client"
 
 import { useState, useTransition, useMemo } from "react"
-import { Plus, Pencil, Trash2, ArrowDownLeft, ArrowUpRight, Search, Download, X, ChevronDown } from "lucide-react"
+import {
+  Plus, Pencil, Trash2, ArrowDownLeft, ArrowUpRight, Search, Download, X, ChevronDown, CheckSquare, Square,
+  Briefcase, Laptop, TrendingUp, Home, Gift, RefreshCw, DollarSign,
+  Utensils, ShoppingCart, Bus, HeartPulse, GraduationCap, Tv, Shirt, Plane, Smartphone, Dumbbell, Tag
+} from "lucide-react"
 import {
   createTransaction,
   deleteTransaction,
+  deleteTransactionsBulk,
   updateTransaction,
   type Tx,
   type TxInput,
   type TxType,
 } from "@/app/actions"
-import { PdfImportButton } from "@/components/finance/pdf-import"
-
+import { ExcelImportButton } from "@/components/finance/pdf-import"
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const INCOME_CATEGORIES = ["Salario","Freelance","Inversiones","Alquiler","Bonificación","Regalo","Reembolso","Otros ingresos"]
-const EXPENSE_CATEGORIES = ["Comida","Supermercado","Transporte","Vivienda","Ocio","Salud","Educación","Suscripciones","Ropa","Viajes","Restaurantes","Tecnología","Deporte","General"]
+const INCOME_CATEGORIES = ["Salario", "Freelance", "Inversiones", "Alquiler", "Bonificación", "Regalo", "Reembolso", "Ocio", "Otros ingresos"]
+const EXPENSE_CATEGORIES = ["Comida", "Supermercado", "Transporte", "Vivienda", "Ocio", "Salud", "Educación", "Suscripciones", "Ropa", "Viajes", "Restaurantes", "Tecnología", "Deporte", "General"]
 
-type FilterType   = "all" | "income" | "expense"
+function getCategoryIcon(category: string, type: TxType) {
+  switch (category) {
+    // Ingresos
+    case "Salario": return Briefcase
+    case "Freelance": return Laptop
+    case "Inversiones": return TrendingUp
+    case "Alquiler": return Home
+    case "Bonificación": return Gift
+    case "Regalo": return Gift
+    case "Reembolso": return RefreshCw
+    case "Otros ingresos": return DollarSign
+
+    // Gastos
+    case "Comida": return Utensils
+    case "Restaurantes": return Utensils
+    case "Supermercado": return ShoppingCart
+    case "Transporte": return Bus
+    case "Vivienda": return Home
+    case "Ocio": return Tv
+    case "Salud": return HeartPulse
+    case "Educación": return GraduationCap
+    case "Suscripciones": return Tv
+    case "Ropa": return Shirt
+    case "Viajes": return Plane
+    case "Tecnología": return Smartphone
+    case "Deporte": return Dumbbell
+    case "General": default:
+      return type === "income" ? ArrowUpRight : ArrowDownLeft
+  }
+}
+
+type FilterType = "all" | "income" | "expense"
 type FilterPeriod = "month" | "3months" | "all"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,21 +83,72 @@ function exportCsv(txs: Tx[]) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DeleteConfirmModal — confirmation dialog for deleting transactions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function DeleteConfirmModal({ tx, onConfirm, onClose, isDeleting }: {
+  tx: Tx
+  onConfirm: () => Promise<void> | void
+  onClose: () => void
+  isDeleting?: boolean
+}) {
+  const isIncome = tx.type === "income"
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog" aria-modal="true" aria-label="Confirmar eliminación" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl bg-card p-6 shadow-xl border border-border">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">¿Eliminar {isIncome ? "ingreso" : "gasto"}?</h3>
+            <p className="text-xs text-muted-foreground">Esta acción no se puede deshacer.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-secondary/50 p-3 text-xs">
+          <p className="font-semibold text-foreground">{tx.name}</p>
+          <p className="mt-0.5 text-muted-foreground">{tx.category} · {formatDate(tx.occurredAt)}</p>
+          <p className={`mt-1 font-bold ${isIncome ? "text-positive" : "text-foreground"}`}>
+            {isIncome ? "+" : "-"}${tx.amount.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} disabled={isDeleting}
+            className="rounded-full bg-secondary px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50">
+            Cancelar
+          </button>
+          <button type="button" onClick={onConfirm} disabled={isDeleting} id="btn-confirm-delete"
+            className="rounded-full bg-destructive px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+            {isDeleting ? "Eliminando…" : "Eliminar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TransactionForm — modal to create / edit a transaction
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TransactionForm({ initial, onSubmit, onClose }: {
+export function TransactionForm({ initial, onSubmit, onDelete, onClose }: {
   initial?: Tx
   onSubmit: (input: TxInput) => Promise<void> | void
+  onDelete?: (id: number) => Promise<void> | void
   onClose: () => void
 }) {
-  const [type, setType]         = useState<TxType>(initial?.type ?? "expense")
-  const [name, setName]         = useState(initial?.name ?? "")
+  const [type, setType] = useState<TxType>(initial?.type ?? "expense")
+  const [name, setName] = useState(initial?.name ?? "")
   const [category, setCategory] = useState(initial?.category ?? "")
-  const [amount, setAmount]     = useState(initial ? String(initial.amount) : "")
-  const [date, setDate]         = useState(todayInput(initial?.occurredAt))
-  const [error, setError]       = useState<string | null>(null)
-  const [saving, setSaving]     = useState(false)
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "")
+  const [date, setDate] = useState(todayInput(initial?.occurredAt))
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 
@@ -84,6 +170,19 @@ export function TransactionForm({ initial, onSubmit, onClose }: {
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar")
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!initial || !onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete(initial.id)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar")
+      setDeleting(false)
+      setConfirmingDelete(false)
     }
   }
 
@@ -138,10 +237,34 @@ export function TransactionForm({ initial, onSubmit, onClose }: {
 
         {error && <p className="mt-3 text-sm font-medium text-destructive">{error}</p>}
 
-        <button type="submit" disabled={saving} id="tx-submit"
-          className="mt-5 w-full rounded-full bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60">
-          {saving ? "Guardando…" : initial ? "Guardar cambios" : "Añadir movimiento"}
-        </button>
+        <div className="mt-5 flex items-center gap-2">
+          {initial && onDelete && (
+            confirmingDelete ? (
+              <div className="flex w-full gap-2">
+                <button type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}
+                  className="flex-1 rounded-full bg-secondary py-3 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-60">
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleDelete} disabled={deleting} id="tx-delete-confirm"
+                  className="flex-1 rounded-full bg-destructive py-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60">
+                  {deleting ? "Eliminando…" : "Confirmar eliminar"}
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setConfirmingDelete(true)} disabled={saving} id="tx-delete-trigger"
+                className="flex items-center justify-center rounded-full bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white disabled:opacity-60"
+                title="Eliminar este movimiento" aria-label="Eliminar movimiento">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )
+          )}
+          {!confirmingDelete && (
+            <button type="submit" disabled={saving} id="tx-submit"
+              className="flex-1 rounded-full bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60">
+              {saving ? "Guardando…" : initial ? "Guardar cambios" : "Añadir movimiento"}
+            </button>
+          )}
+        </div>
       </form>
     </div>
   )
@@ -157,11 +280,14 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
   typeFilter?: FilterType
 }) {
   const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing]   = useState<Tx | undefined>(undefined)
+  const [editing, setEditing] = useState<Tx | undefined>(undefined)
+  const [deletingTx, setDeletingTx] = useState<Tx | null>(null)
   const [pending, startTransition] = useTransition()
-  const [search, setSearch]        = useState("")
-  const [filterType, setFilterType]     = useState<FilterType>(typeFilter ?? "all")
+  const [search, setSearch] = useState("")
+  const [filterType, setFilterType] = useState<FilterType>(typeFilter ?? "all")
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>("all")
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
 
   const filtered = useMemo(() => {
     const now = new Date()
@@ -184,10 +310,42 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
   const displayList = showAll ? filtered : filtered.slice(0, 10)
   const isFiltered = (typeFilter ?? filterType) !== "all" || filterPeriod !== "all" || search.trim() !== ""
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((t) => selectedIds.includes(t.id))
+
+  function toggleSelectAll() {
+    if (allFilteredSelected) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filtered.map((t) => t.id))
+    }
+  }
+
+  function toggleSelectTx(id: number) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    )
+  }
+
   async function handleSubmit(input: TxInput) {
     if (editing) await updateTransaction(editing.id, input)
     else await createTransaction(input)
   }
+
+  async function handleDelete(id: number) {
+    startTransition(async () => {
+      await deleteTransaction(id)
+    })
+  }
+
+  async function handleBulkDelete() {
+    startTransition(async () => {
+      await deleteTransactionsBulk(selectedIds)
+      setSelectedIds([])
+      setConfirmingBulkDelete(false)
+    })
+  }
+
+  const periodLabel = filterPeriod === "month" ? "este mes" : filterPeriod === "3months" ? "los últimos 3 meses" : "todo el historial"
 
   return (
     <section className="rounded-3xl bg-card p-5 shadow-sm">
@@ -199,7 +357,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
             className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
             <Download className="h-4 w-4" aria-hidden="true" />
           </button>
-          <PdfImportButton />
+          <ExcelImportButton />
           <button type="button" id="btn-add-transaction" onClick={() => { setEditing(undefined); setFormOpen(true) }}
             className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">
             <Plus className="h-4 w-4" aria-hidden="true" />Añadir
@@ -207,7 +365,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters & Bulk Toolbar */}
       <div className="mt-4 flex flex-col gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -222,16 +380,18 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
           )}
         </div>
         {!typeFilter && (
-          <div className="flex flex-wrap gap-2">
-            {(["all", "income", "expense"] as FilterType[]).map((t) => (
-              <button key={t} type="button" onClick={() => setFilterType(t)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
-                {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
-              </button>
-            ))}
-            <div className="ml-auto flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2">
+              {(["all", "income", "expense"] as FilterType[]).map((t) => (
+                <button key={t} type="button" onClick={() => setFilterType(t)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
+                  {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 items-center">
               {(["month", "3months", "all"] as FilterPeriod[]).map((p) => (
-                <button key={p} type="button" onClick={() => setFilterPeriod(p)}
+                <button key={p} type="button" onClick={() => { setFilterPeriod(p); setSelectedIds([]) }}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterPeriod === p ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}>
                   {p === "month" ? "Este mes" : p === "3months" ? "3 meses" : "Todo"}
                 </button>
@@ -239,9 +399,30 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
             </div>
           </div>
         )}
+
+        {/* Selection Bar */}
+        <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
+          <button type="button" onClick={toggleSelectAll} className="flex items-center gap-1.5 hover:text-foreground">
+            {allFilteredSelected
+              ? <CheckSquare className="h-4 w-4 text-primary" />
+              : <Square className="h-4 w-4" />}
+            <span>Seleccionar todo ({filtered.length} de {periodLabel})</span>
+          </button>
+
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setConfirmingBulkDelete(true)}
+              className="flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar {selectedIds.length} seleccionado{selectedIds.length !== 1 ? "s" : ""}
+            </button>
+          )}
+        </div>
       </div>
 
-      {isFiltered && <p className="mt-3 text-xs text-muted-foreground">{filtered.length} {filtered.length === 1 ? "resultado" : "resultados"}</p>}
+      {isFiltered && <p className="mt-2 text-xs text-muted-foreground">{filtered.length} {filtered.length === 1 ? "resultado" : "resultados"}</p>}
 
       {/* List */}
       {displayList.length === 0 ? (
@@ -252,24 +433,31 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
         <ul className="mt-4 flex flex-col divide-y divide-border">
           {displayList.map((t) => {
             const isIncome = t.type === "income"
+            const isSelected = selectedIds.includes(t.id)
+            const Icon = getCategoryIcon(t.category, t.type)
             return (
               <li key={t.id} className="group flex items-center gap-3 py-3">
+                <button type="button" onClick={() => toggleSelectTx(t.id)} aria-label="Seleccionar transacción">
+                  {isSelected
+                    ? <CheckSquare className="h-4 w-4 text-primary shrink-0" />
+                    : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                </button>
                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isIncome ? "bg-positive/10 text-positive" : "bg-destructive/10 text-destructive"}`} aria-hidden="true">
-                  {isIncome ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+                  <Icon className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{t.name}</p>
+                  <p className={`truncate text-sm font-semibold ${isIncome ? "text-positive" : "text-destructive"}`}>{t.name}</p>
                   <p className="text-xs text-muted-foreground">{t.category} · {formatDate(t.occurredAt)}</p>
                 </div>
                 <span className={`text-sm font-bold ${isIncome ? "text-positive" : "text-foreground"}`}>
                   {isIncome ? "+" : "-"}${t.amount.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
                   <button type="button" onClick={() => { setEditing(t); setFormOpen(true) }} aria-label={`Editar ${t.name}`}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                   </button>
-                  <button type="button" onClick={() => startTransition(async () => { await deleteTransaction(t.id) })}
+                  <button type="button" onClick={() => setDeletingTx(t)}
                     disabled={pending} aria-label={`Eliminar ${t.name}`}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -285,7 +473,54 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
         <p className="mt-3 text-center text-xs text-muted-foreground">Mostrando 10 de {filtered.length} movimientos</p>
       )}
 
-      {formOpen && <TransactionForm initial={editing} onSubmit={handleSubmit} onClose={() => setFormOpen(false)} />}
+      {formOpen && (
+        <TransactionForm
+          initial={editing}
+          onSubmit={handleSubmit}
+          onDelete={handleDelete}
+          onClose={() => setFormOpen(false)}
+        />
+      )}
+
+      {deletingTx && (
+        <DeleteConfirmModal
+          tx={deletingTx}
+          isDeleting={pending}
+          onConfirm={async () => {
+            await handleDelete(deletingTx.id)
+            setDeletingTx(null)
+          }}
+          onClose={() => setDeletingTx(null)}
+        />
+      )}
+
+      {confirmingBulkDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog" aria-modal="true" aria-label="Confirmar eliminación masiva" onClick={() => setConfirmingBulkDelete(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl bg-card p-6 shadow-xl border border-border">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <Trash2 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">¿Eliminar {selectedIds.length} movimientos?</h3>
+                <p className="text-xs text-muted-foreground">Se eliminarán todos los elementos seleccionados de ({periodLabel}). Esta acción no se puede deshacer.</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setConfirmingBulkDelete(false)} disabled={pending}
+                className="rounded-full bg-secondary px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleBulkDelete} disabled={pending} id="btn-confirm-bulk-delete"
+                className="rounded-full bg-destructive px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+                {pending ? "Eliminando…" : `Eliminar (${selectedIds.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

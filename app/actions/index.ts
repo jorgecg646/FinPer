@@ -246,6 +246,16 @@ export async function deleteTransaction(id: number) {
   revalidatePath("/")
 }
 
+export async function deleteTransactionsBulk(ids: number[]) {
+  if (!ids.length) return
+  const activeUserId = await getActiveUserId()
+  for (const id of ids) {
+    await db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
+  }
+  invalidateUserCache(activeUserId)
+  revalidatePath("/")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Profile stats — Cached & Scoped to Active User
 // ─────────────────────────────────────────────────────────────────────────────
