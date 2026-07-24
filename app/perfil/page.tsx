@@ -6,13 +6,13 @@ import { FinancialOverviewRatioChart, ExpenseCategoryProgressChart, YearSelector
 export const dynamic = "force-dynamic"
 
 export const metadata = {
-  title: "Perfil — FinFlow",
-  description: "Tu perfil y resumen financiero personal.",
+  title: "Perfil — BudgetNext",
+  description: "Configuración de perfil y preferencias.",
 }
 
 export default async function PerfilPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const resolvedParams = await searchParams
-  const targetYear = resolvedParams?.year ? parseInt(resolvedParams.year) : undefined
+  const { year } = await searchParams
+  const targetYear = year ? Number(year) : undefined
 
   const [summary, stats, transactions] = await Promise.all([getSummary(targetYear), getProfileStats(), getTransactions()])
   const selectedYear = summary.selectedYear

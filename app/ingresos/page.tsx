@@ -7,13 +7,13 @@ import { TrendingUp } from "lucide-react"
 export const dynamic = "force-dynamic"
 
 export const metadata = {
-  title: "Ingresos — FinFlow",
+  title: "Ingresos — BudgetNext",
   description: "Visualiza y gestiona todos tus ingresos.",
 }
 
 export default async function IngresosPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const resolvedParams = await searchParams
-  const targetYear = resolvedParams?.year ? parseInt(resolvedParams.year) : undefined
+  const { year } = await searchParams
+  const targetYear = year ? Number(year) : undefined
 
   const [summary, transactions] = await Promise.all([getSummary(targetYear), getTransactions()])
   const selectedYear = summary.selectedYear

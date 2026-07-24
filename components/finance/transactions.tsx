@@ -15,7 +15,7 @@ import {
   type TxInput,
   type TxType,
 } from "@/app/actions"
-import { ExcelImportButton } from "@/components/finance/pdf-import"
+import { ExcelImportButton } from "@/components/finance/excel-import"
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ function exportCsv(txs: Tx[]) {
   )
   const blob = new Blob(["\uFEFF" + [header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" })
   const url = URL.createObjectURL(blob)
-  const a = Object.assign(document.createElement("a"), { href: url, download: `finflow-${new Date().toISOString().slice(0, 10)}.csv` })
+  const a = Object.assign(document.createElement("a"), { href: url, download: `BudgetNext-${new Date().toISOString().slice(0, 10)}.csv` })
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -274,11 +274,14 @@ export function TransactionForm({ initial, onSubmit, onDelete, onClose }: {
 // RecentTransactions — filterable list with search, CSV export & CRUD
 // ─────────────────────────────────────────────────────────────────────────────
 
+const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
 export function RecentTransactions({ transactions, showAll = false, typeFilter }: {
   transactions: Tx[]
   showAll?: boolean
   typeFilter?: FilterType
 }) {
+  const now = new Date()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Tx | undefined>(undefined)
   const [deletingTx, setDeletingTx] = useState<Tx | null>(null)
@@ -286,29 +289,68 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
   const [search, setSearch] = useState("")
   const [filterType, setFilterType] = useState<FilterType>(typeFilter ?? "all")
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>("all")
+  // Month/Year filters for the full transaction view (ingresos/gastos pages)
+  const [filterMonth, setFilterMonth] = useState<number | "all">("all")
+  const [filterYear, setFilterYear] = useState<number | "all">("all")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(10)
+
+  // Available years derived from transactions data for the year selector
+  const availableYears = useMemo(() => {
+    const years = new Set<number>()
+    for (const t of transactions) years.add(new Date(t.occurredAt).getFullYear())
+    return [...years].sort((a, b) => b - a)
+  }, [transactions])
 
   const filtered = useMemo(() => {
-    const now = new Date()
     return transactions.filter((t) => {
       const activeType = typeFilter ?? filterType
       if (activeType !== "all" && t.type !== activeType) return false
-      if (filterPeriod !== "all") {
-        const monthsBack = filterPeriod === "month" ? 1 : 3
-        const cutoff = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
-        if (new Date(t.occurredAt) < cutoff) return false
+
+      const d = new Date(t.occurredAt)
+
+      if (showAll) {
+        // Full view: filter by specific year and/or month
+        if (filterYear !== "all" && d.getFullYear() !== filterYear) return false
+        if (filterMonth !== "all" && d.getMonth() !== filterMonth) return false
+      } else {
+        // Dashboard compact view: filter by relative period
+        if (filterPeriod !== "all") {
+          const monthsBack = filterPeriod === "month" ? 1 : 3
+          const cutoff = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
+          if (d < cutoff) return false
+        }
       }
+
       if (search.trim()) {
         const q = search.toLowerCase()
         if (!t.name.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false
       }
       return true
     })
-  }, [transactions, filterType, typeFilter, filterPeriod, search])
+  }, [transactions, filterType, typeFilter, filterPeriod, filterMonth, filterYear, showAll, search])
 
-  const displayList = showAll ? filtered : filtered.slice(0, 10)
-  const isFiltered = (typeFilter ?? filterType) !== "all" || filterPeriod !== "all" || search.trim() !== ""
+  // Reset pagination when filters change
+  const totalItems = filtered.length
+  const effectiveItemsPerPage = itemsPerPage === "all" ? Math.max(1, totalItems) : itemsPerPage
+  const totalPages = Math.ceil(totalItems / (typeof effectiveItemsPerPage === "number" ? effectiveItemsPerPage : 1)) || 1
+
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+
+  const displayList = useMemo(() => {
+    if (!showAll) {
+      return filtered.slice(0, 10)
+    }
+    if (itemsPerPage === "all") {
+      return filtered
+    }
+    const start = (safeCurrentPage - 1) * itemsPerPage
+    return filtered.slice(start, start + itemsPerPage)
+  }, [filtered, showAll, itemsPerPage, safeCurrentPage])
+
+  const isFiltered = (typeFilter ?? filterType) !== "all" || filterPeriod !== "all" || search.trim() !== "" || filterMonth !== "all" || filterYear !== "all"
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((t) => selectedIds.includes(t.id))
 
@@ -326,14 +368,20 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
     )
   }
 
+  function dispatchMutation() {
+    window.dispatchEvent(new Event("data-mutated"))
+  }
+
   async function handleSubmit(input: TxInput) {
     if (editing) await updateTransaction(editing.id, input)
     else await createTransaction(input)
+    dispatchMutation()
   }
 
   async function handleDelete(id: number) {
     startTransition(async () => {
       await deleteTransaction(id)
+      dispatchMutation()
     })
   }
 
@@ -342,6 +390,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
       await deleteTransactionsBulk(selectedIds)
       setSelectedIds([])
       setConfirmingBulkDelete(false)
+      dispatchMutation()
     })
   }
 
@@ -369,29 +418,89 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
       <div className="mt-4 flex flex-col gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input id="tx-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+          <input id="tx-search" type="search" value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
             placeholder="Buscar por descripción o categoría…"
             className="w-full rounded-full border border-border bg-background py-2 pl-9 pr-9 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring" />
           {search && (
-            <button type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda"
+            <button type="button" onClick={() => { setSearch(""); setCurrentPage(1) }} aria-label="Limpiar búsqueda"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-        {!typeFilter && (
+
+        {/* Full-view: month + year pickers */}
+        {showAll && (
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2 flex-wrap">
+              {/* Year selector */}
+              <select
+                value={filterYear === "all" ? "all" : String(filterYear)}
+                onChange={(e) => { setFilterYear(e.target.value === "all" ? "all" : parseInt(e.target.value)); setCurrentPage(1) }}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                aria-label="Filtrar por año"
+              >
+                <option value="all">Todos los años</option>
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+
+              {/* Month selector */}
+              <select
+                value={filterMonth === "all" ? "all" : String(filterMonth)}
+                onChange={(e) => { setFilterMonth(e.target.value === "all" ? "all" : parseInt(e.target.value)); setCurrentPage(1) }}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                aria-label="Filtrar por mes"
+              >
+                <option value="all">Todos los meses</option>
+                {MONTH_NAMES.map((name, idx) => (
+                  <option key={idx} value={idx}>{name}</option>
+                ))}
+              </select>
+
+              {/* Reset filters */}
+              {(filterMonth !== "all" || filterYear !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => { setFilterMonth("all"); setFilterYear("all"); setCurrentPage(1) }}
+                  className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                  aria-label="Limpiar filtros de fecha"
+                >
+                  <X className="h-3 w-3" />
+                  Limpiar
+                </button>
+              )}
+            </div>
+
+            {/* Type filter — only visible in all-types view */}
+            {!typeFilter && (
+              <div className="flex gap-2">
+                {(["all", "income", "expense"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => { setFilterType(t); setCurrentPage(1) }}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
+                    {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Dashboard compact view: relative period buttons */}
+        {!showAll && !typeFilter && (
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <div className="flex gap-2">
-              {(["all", "income", "expense"] as FilterType[]).map((t) => (
-                <button key={t} type="button" onClick={() => setFilterType(t)}
+              {(["all", "income", "expense"] as const).map((t) => (
+                <button key={t} type="button" onClick={() => { setFilterType(t); setCurrentPage(1) }}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
                   {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
                 </button>
               ))}
             </div>
             <div className="flex gap-2 items-center">
-              {(["month", "3months", "all"] as FilterPeriod[]).map((p) => (
-                <button key={p} type="button" onClick={() => { setFilterPeriod(p); setSelectedIds([]) }}
+              {(["month", "3months", "all"] as const).map((p) => (
+                <button key={p} type="button" onClick={() => { setFilterPeriod(p); setSelectedIds([]); setCurrentPage(1) }}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterPeriod === p ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}>
                   {p === "month" ? "Este mes" : p === "3months" ? "3 meses" : "Todo"}
                 </button>
@@ -469,8 +578,94 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
         </ul>
       )}
 
-      {!showAll && filtered.length > 10 && (
-        <p className="mt-3 text-center text-xs text-muted-foreground">Mostrando 10 de {filtered.length} movimientos</p>
+      {/* Pagination Controls */}
+      {showAll ? (
+        <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Mostrar:</span>
+            <select
+              id="tx-items-per-page"
+              value={itemsPerPage}
+              onChange={(e) => {
+                const val = e.target.value
+                setItemsPerPage(val === "all" ? "all" : Number(val))
+                setCurrentPage(1)
+              }}
+              className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value={10}>10 por pág.</option>
+              <option value={20}>20 por pág.</option>
+              <option value={50}>50 por pág.</option>
+              <option value="all">Ver todos ({totalItems})</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span>
+              {totalItems === 0
+                ? "0 de 0"
+                : itemsPerPage === "all"
+                ? `1-${totalItems} de ${totalItems}`
+                : `${(safeCurrentPage - 1) * (itemsPerPage as number) + 1}-${Math.min(safeCurrentPage * (itemsPerPage as number), totalItems)} de ${totalItems}`}
+            </span>
+
+            {itemsPerPage !== "all" && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safeCurrentPage <= 1}
+                  className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1)
+                    .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                        acc.push("...")
+                      }
+                      acc.push(page)
+                      return acc
+                    }, [])
+                    .map((item, idx) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setCurrentPage(item)}
+                          className={`h-7 w-7 rounded-lg text-xs font-semibold transition-colors ${
+                            safeCurrentPage === item
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background border border-border text-foreground hover:bg-secondary"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={`dots-${idx}`} className="px-1 text-muted-foreground">
+                          ...
+                        </span>
+                      )
+                    )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safeCurrentPage >= totalPages}
+                  className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        filtered.length > 10 && (
+          <p className="mt-3 text-center text-xs text-muted-foreground">Mostrando 10 de {filtered.length} movimientos</p>
+        )
       )}
 
       {formOpen && (

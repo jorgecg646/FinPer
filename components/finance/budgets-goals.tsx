@@ -25,9 +25,6 @@ export type Goal = {
 const BUDGETS_KEY = "finflow-budgets"
 const GOALS_KEY = "finflow-goals"
 
-const DEFAULT_BUDGETS: Budget[] = []
-const DEFAULT_GOALS: Goal[] = []
-
 // ─────────────────────────────────────────────────────────────────────────────
 // BudgetsAndGoalsManager Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,13 +44,13 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
   useEffect(() => {
     try {
       const bStored = localStorage.getItem(BUDGETS_KEY)
-      setBudgets(bStored ? JSON.parse(bStored) : DEFAULT_BUDGETS)
+      setBudgets(bStored ? JSON.parse(bStored) : [])
 
       const gStored = localStorage.getItem(GOALS_KEY)
-      setGoals(gStored ? JSON.parse(gStored) : DEFAULT_GOALS)
+      setGoals(gStored ? JSON.parse(gStored) : [])
     } catch {
-      setBudgets(DEFAULT_BUDGETS)
-      setGoals(DEFAULT_GOALS)
+      setBudgets([])
+      setGoals([])
     }
   }, [])
 

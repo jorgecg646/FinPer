@@ -1,18 +1,10 @@
 "use client"
 
-import { Eye, EyeOff, TrendingUp, TrendingDown, Bell } from "lucide-react"
-import { useState } from "react"
+import { Eye, EyeOff, TrendingUp, TrendingDown, Bell, X, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
+import { useState, useEffect } from "react"
 import type { Summary } from "@/app/actions"
-import { user } from "@/lib/finance-data"
-
+import { loadLocalProfile } from "@/lib/profile"
 import { useAuth } from "@/components/auth/netlify-auth"
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Topbar — desktop-only greeting header
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { X, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
-
 import { UserAvatar } from "@/components/finance/navigation"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,10 +13,21 @@ import { UserAvatar } from "@/components/finance/navigation"
 
 export function Topbar() {
   const { user: authUser } = useAuth()
-  const displayName = authUser?.name || user.name
-  const displayAvatar = authUser?.avatar || user.avatar
+  const [localProfile, setLocalProfile] = useState(loadLocalProfile)
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(true)
+
+  useEffect(() => {
+    function update() {
+      setLocalProfile(loadLocalProfile())
+    }
+    update()
+    window.addEventListener("profile-updated", update)
+    return () => window.removeEventListener("profile-updated", update)
+  }, [])
+
+  const displayName = authUser?.name || localProfile.name
+  const displayAvatar = authUser?.avatar || localProfile.avatar
 
   const sampleNotifications = [
     { id: "n1", title: "Autenticación activa", desc: authUser ? `Iniciado como ${authUser.email}` : "Cuenta local activa", icon: ShieldCheck, color: "text-positive" },

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, CreditCard, Sun, Moon } from "lucide-react"
-import { user as fallbackUser } from "@/lib/finance-data"
+import { loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
 import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
 
@@ -68,7 +68,7 @@ export function ThemeToggle() {
 }
 
 export function UserAvatar({ name, src, className = "h-9 w-9" }: { name: string; src?: string; className?: string }) {
-  if (src && src.trim() && src !== "/avatar.png" && src !== "/placeholder.svg") {
+  if (src && src.trim() && src !== "/avatar.png") {
     return <img src={src} alt={`Foto de ${name}`} className={`${className} rounded-full object-cover shrink-0 ring-2 ring-card shadow-xs`} />
   }
   return (
@@ -84,14 +84,26 @@ import { PrivacyModal } from "@/components/auth/privacy-modal"
 // Sidebar — desktop left panel
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+
 export function Sidebar({ balance, onClose }: { balance: number; onClose?: () => void }) {
   const pathname = usePathname()
   const { user, login, logout } = useAuth()
   const [privacyOpen, setPrivacyOpen] = useState(false)
+  const [localProfile, setLocalProfile] = useState(loadLocalProfile)
 
-  const displayName = user?.name || fallbackUser.name
-  const displayAvatar = user?.avatar || fallbackUser.avatar
-  const displaySub = user?.email || fallbackUser.plan
+  useEffect(() => {
+    function update() {
+      setLocalProfile(loadLocalProfile())
+    }
+    update()
+    window.addEventListener("profile-updated", update)
+    return () => window.removeEventListener("profile-updated", update)
+  }, [])
+
+  const displayName = user?.name || localProfile.name
+  const displayAvatar = user?.avatar || localProfile.avatar
+  const displaySub = user?.email || localProfile.plan
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-6">
@@ -186,8 +198,9 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
 
 export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
   const { user, login } = useAuth()
-  const displayAvatar = user?.avatar || fallbackUser.avatar
-  const displayName = user?.name || fallbackUser.name
+  const localProfile = loadLocalProfile()
+  const displayAvatar = user?.avatar || localProfile.avatar
+  const displayName = user?.name || localProfile.name
 
   return (
     <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">

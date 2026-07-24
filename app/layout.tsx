@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+import { DataMutationListener } from '@/components/finance/refresh-on-navigate'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -38,6 +39,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`bg-background ${jakarta.variable}`} suppressHydrationWarning>
       <body className="antialiased font-sans" suppressHydrationWarning>
+        <DataMutationListener />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

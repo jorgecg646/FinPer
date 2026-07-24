@@ -14,7 +14,8 @@ import {
   RotateCcw,
 } from "lucide-react"
 
-import { createTransaction } from "@/app/actions"
+
+import { createTransaction, createTransactionsBulk } from "@/app/actions"
 import type { ParsedTransaction } from "@/app/api/parse-pdf/route"
 
 const INCOME_CATS = [
@@ -77,7 +78,12 @@ function DropZone({ onFile }: { onFile: (f: File) => void }) {
       e.preventDefault()
       setDragging(false)
       const file = e.dataTransfer.files[0]
-      if (file && (file.type.includes("sheet") || file.name.toLowerCase().match(/\.(xlsx|xls)$/))) {
+      if (
+        file &&
+        (file.type.includes("sheet") ||
+          file.type.includes("csv") ||
+          file.name.toLowerCase().match(/\.(xlsx|xls|csv)$/))
+      ) {
         onFile(file)
       }
     },
@@ -115,16 +121,16 @@ function DropZone({ onFile }: { onFile: (f: File) => void }) {
 
       <div className="text-center">
         <p className="text-sm font-semibold text-foreground">
-          {dragging ? "Suelta el Excel aquí" : "Arrastra tu archivo Excel"}
+          {dragging ? "Suelta el archivo aquí" : "Arrastra tu archivo Excel o CSV"}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">o haz clic para seleccionar XLSX / XLS</p>
-        <p className="mt-2 text-xs text-muted-foreground/70">Compatible con Santander y otros extractos en Excel</p>
+        <p className="mt-1 text-xs text-muted-foreground">o haz clic para seleccionar CSV / XLSX / XLS</p>
+        <p className="mt-2 text-xs text-muted-foreground/70">Compatible con bancos y extractos en CSV o Excel</p>
       </div>
 
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0]
@@ -271,24 +277,23 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
 
     setStep("importing")
     startTransition(async () => {
-      let count = 0
-      for (const tx of selected) {
-        try {
-          await createTransaction({
-            name: tx.name,
-            category: tx.category,
-            type: tx.type,
-            amount: tx.amount,
-            occurredAt: new Date(tx.date).toISOString(),
-          })
-          count++
-        } catch {
-          // skip invalid rows
-        }
-      }
+      try {
+        const payload = selected.map((tx) => ({
+          name: tx.name,
+          category: tx.category,
+          type: tx.type,
+          amount: tx.amount,
+          occurredAt: new Date(tx.date).toISOString(),
+        }))
 
-      setImportedCount(count)
-      setStep("done")
+        const count = await createTransactionsBulk(payload)
+        setImportedCount(count)
+        setStep("done")
+        window.dispatchEvent(new Event("data-mutated"))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error al importar los movimientos")
+        setStep("review")
+      }
     })
   }
 
@@ -534,11 +539,11 @@ export function ExcelImportButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Importar extracto bancario Excel"
+        title="Importar extracto bancario Excel o CSV"
         className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
       >
         <FileText className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Importar Excel</span>
+        <span className="hidden sm:inline">Importar Excel/CSV</span>
       </button>
 
       {open && <ExcelImportModal onClose={() => setOpen(false)} />}

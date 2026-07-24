@@ -9,8 +9,8 @@ import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf
 export const dynamic = "force-dynamic"
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const resolvedParams = await searchParams
-  const targetYear = resolvedParams?.year ? parseInt(resolvedParams.year) : undefined
+  const { year } = await searchParams
+  const targetYear = year ? Number(year) : undefined
 
   const [summary, transactions] = await Promise.all([getSummary(targetYear), getTransactions()])
   const selectedYear = summary.selectedYear

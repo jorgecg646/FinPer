@@ -12,18 +12,8 @@ import { LogOut } from "lucide-react"
 // Local profile (name, plan, avatar stored in localStorage)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY  = "finflow-profile"
+import { loadLocalProfile, PROFILE_STORAGE_KEY } from "@/lib/profile"
 const PLAN_OPTIONS = ["Gratuito", "Básico", "Premium", "Empresarial"]
-
-type LocalProfile = { name: string; plan: string; avatar: string }
-
-function loadProfile(): LocalProfile {
-  if (typeof window === "undefined") return { name: "Alex Piter", plan: "Premium", avatar: "/avatar.png" }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { name: "Alex Piter", plan: "Premium", avatar: "/avatar.png" }
-  } catch { return { name: "Alex Piter", plan: "Premium", avatar: "/avatar.png" } }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StatItem — a single stat row in the financial summary grid
@@ -34,9 +24,8 @@ function StatItem({ icon: Icon, label, value, accent }: {
 }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border bg-background p-4">
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-        accent === "positive" ? "bg-positive/10 text-positive" : accent === "destructive" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary-foreground"
-      }`}>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${accent === "positive" ? "bg-positive/10 text-positive" : accent === "destructive" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary-foreground"
+        }`}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <div className="min-w-0">
@@ -55,15 +44,16 @@ import { PrivacyModal } from "@/components/auth/privacy-modal"
 
 export function ProfileForm({ stats }: { stats: ProfileStats }) {
   const { user: authUser, login, logout } = useAuth()
-  const [profile, setProfile] = useState<LocalProfile>(loadProfile)
-  const [saved, setSaved]     = useState(false)
+  const [profile, setProfile] = useState(loadLocalProfile)
+  const [saved, setSaved] = useState(false)
   const [privacyOpen, setPrivacyOpen] = useState(false)
 
-  useEffect(() => { setProfile(loadProfile()) }, [])
+  useEffect(() => { setProfile(loadLocalProfile()) }, [])
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile))
+    window.dispatchEvent(new Event("profile-updated"))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -171,12 +161,12 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
       <section className="rounded-3xl bg-card p-6 shadow-sm">
         <h2 className="text-lg font-bold text-foreground">Resumen financiero</h2>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <StatItem icon={Activity}     label="Transacciones totales" value={String(stats.totalTransactions)} />
-          <StatItem icon={Calendar}     label="Meses activo"          value={String(stats.monthsActive)} />
-          <StatItem icon={TrendingUp}   label="Total ingresos"        value={fmt(stats.totalIncome)}        accent="positive" />
-          <StatItem icon={TrendingDown} label="Total gastos"          value={fmt(stats.totalExpenses)}      accent="destructive" />
-          <StatItem icon={TrendingUp}   label="Ingreso medio/mes"     value={fmt(stats.avgMonthlyIncome)}   accent="positive" />
-          <StatItem icon={TrendingDown} label="Gasto medio/mes"       value={fmt(stats.avgMonthlyExpense)}  accent="destructive" />
+          <StatItem icon={Activity} label="Transacciones totales" value={String(stats.totalTransactions)} />
+          <StatItem icon={Calendar} label="Meses activo" value={String(stats.monthsActive)} />
+          <StatItem icon={TrendingUp} label="Total ingresos" value={fmt(stats.totalIncome)} accent="positive" />
+          <StatItem icon={TrendingDown} label="Total gastos" value={fmt(stats.totalExpenses)} accent="destructive" />
+          <StatItem icon={TrendingUp} label="Ingreso medio/mes" value={fmt(stats.avgMonthlyIncome)} accent="positive" />
+          <StatItem icon={TrendingDown} label="Gasto medio/mes" value={fmt(stats.avgMonthlyExpense)} accent="destructive" />
           {stats.topCategory && <StatItem icon={Tag} label="Categoría principal" value={stats.topCategory} />}
           <StatItem icon={User} label="Balance neto" value={fmt(stats.balance)} accent={stats.balance >= 0 ? "positive" : "destructive"} />
         </div>

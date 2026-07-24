@@ -7,13 +7,13 @@ import { TrendingDown } from "lucide-react"
 export const dynamic = "force-dynamic"
 
 export const metadata = {
-  title: "Gastos — FinFlow",
+  title: "Gastos — BudgetNext",
   description: "Visualiza y controla todos tus gastos por categoría.",
 }
 
 export default async function GastosPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const resolvedParams = await searchParams
-  const targetYear = resolvedParams?.year ? parseInt(resolvedParams.year) : undefined
+  const { year } = await searchParams
+  const targetYear = year ? Number(year) : undefined
 
   const [summary, transactions] = await Promise.all([getSummary(targetYear), getTransactions()])
   const selectedYear = summary.selectedYear

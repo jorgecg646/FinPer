@@ -104,7 +104,7 @@ export function YearSelector({
 
 export function IncomeChart({ monthly, year }: { monthly: Summary["monthly"]; year?: number }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const maxIncome = Math.max(1, ...monthly.map((m) => Math.max(0, m.net)))
+  const maxIncome = Math.max(1, ...monthly.map((m) => m.income ?? Math.max(0, m.net)))
 
   return (
     <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
@@ -115,26 +115,26 @@ export function IncomeChart({ monthly, year }: { monthly: Summary["monthly"]; ye
         </div>
         {hoveredIdx !== null && (
           <div className="text-xs font-semibold text-positive bg-positive/10 px-3 py-1 rounded-full self-start sm:self-auto">
-            {monthly[hoveredIdx].label}: +${Math.max(0, monthly[hoveredIdx].net).toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+            {monthly[hoveredIdx].label}: +${(monthly[hoveredIdx].income ?? Math.max(0, monthly[hoveredIdx].net)).toLocaleString("es-ES", { minimumFractionDigits: 2 })}
           </div>
         )}
       </div>
 
-      {/* Horizontal scroll wrapper for crisp mobile rendering */}
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[540px] flex flex-col gap-2">
-          <div className="relative h-44 sm:h-48 w-full">
-            <svg viewBox="0 0 600 160" preserveAspectRatio="none" className="h-full w-full" role="img">
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="90" x2="600" y2="90" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="158" x2="600" y2="158" stroke="var(--border)" strokeWidth="1.5" />
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
 
               {monthly.map((m, i) => {
                 const groupW = 600 / monthly.length
-                const barW = 18
+                const barW = 16
                 const x = i * groupW + (groupW - barW) / 2
-                const netIncome = Math.max(0, m.net)
-                const barHeight = (netIncome / maxIncome) * 135
+                const groupCenterX = i * groupW + groupW / 2
+                const monthInc = m.income ?? Math.max(0, m.net)
+                const barHeight = (monthInc / maxIncome) * 115
                 const isHovered = hoveredIdx === i
 
                 return (
@@ -144,10 +144,10 @@ export function IncomeChart({ monthly, year }: { monthly: Summary["monthly"]; ye
                     onMouseEnter={() => setHoveredIdx(i)}
                     onMouseLeave={() => setHoveredIdx(null)}
                   >
-                    <rect x={i * groupW} y="0" width={groupW} height="160" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="4" />
+                    <rect x={i * groupW} y="0" width={groupW} height="170" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="4" />
                     <rect
                       x={x}
-                      y={158 - barHeight}
+                      y={140 - barHeight}
                       width={barW}
                       height={Math.max(2, barHeight)}
                       rx="4"
@@ -401,18 +401,19 @@ export function ExpenseMonthlyBarChart({ transactions, selectedYear }: { transac
       </div>
 
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[540px] flex flex-col gap-2">
-          <div className="relative h-44 sm:h-48 w-full">
-            <svg viewBox="0 0 600 160" preserveAspectRatio="none" className="h-full w-full" role="img">
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="90" x2="600" y2="90" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="158" x2="600" y2="158" stroke="var(--border)" strokeWidth="1.5" />
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
 
               {monthlyData.map((m, i) => {
                 const groupW = 600 / monthlyData.length
                 const barW = 18
                 const x = i * groupW + (groupW - barW) / 2
-                const barHeight = (m.expense / maxExpense) * 135
+                const groupCenterX = i * groupW + groupW / 2
+                const barHeight = (m.expense / maxExpense) * 115
                 const isHovered = hoveredIdx === i
 
                 return (
@@ -422,10 +423,10 @@ export function ExpenseMonthlyBarChart({ transactions, selectedYear }: { transac
                     onMouseEnter={() => setHoveredIdx(i)}
                     onMouseLeave={() => setHoveredIdx(null)}
                   >
-                    <rect x={i * groupW} y="0" width={groupW} height="160" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="4" />
+                    <rect x={i * groupW} y="0" width={groupW} height="170" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="4" />
                     <rect
                       x={x}
-                      y={158 - barHeight}
+                      y={140 - barHeight}
                       width={barW}
                       height={Math.max(2, barHeight)}
                       rx="4"
@@ -433,23 +434,19 @@ export function ExpenseMonthlyBarChart({ transactions, selectedYear }: { transac
                       opacity={isHovered ? "1" : "0.85"}
                       className="transition-all duration-200"
                     />
+                    <text
+                      x={groupCenterX}
+                      y="162"
+                      textAnchor="middle"
+                      className={`text-[12px] font-semibold transition-colors ${isHovered ? "fill-foreground font-bold" : "fill-muted-foreground"}`}
+                      style={{ fontSize: "12px" }}
+                    >
+                      {m.label}
+                    </text>
                   </g>
                 )
               })}
             </svg>
-          </div>
-
-          <div className="grid grid-cols-12 text-center text-xs font-semibold text-muted-foreground pt-1">
-            {monthlyData.map((m, i) => (
-              <span
-                key={m.label + i}
-                className={`cursor-pointer transition-colors ${hoveredIdx === i ? "text-foreground font-bold" : ""}`}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-              >
-                {m.label}
-              </span>
-            ))}
           </div>
         </div>
       </div>
@@ -486,21 +483,22 @@ export function MonthlyComparisonChart({ transactions, selectedYear }: { transac
       </div>
 
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[540px] flex flex-col gap-2">
-          <div className="relative h-44 sm:h-48 w-full">
-            <svg viewBox="0 0 600 160" preserveAspectRatio="none" className="h-full w-full" role="img">
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="90" x2="600" y2="90" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
-              <line x1="0" y1="158" x2="600" y2="158" stroke="var(--border)" strokeWidth="1.5" />
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
 
               {months.map((m, i) => {
                 const groupW = 600 / months.length
                 const barW = 10
                 const xInc = i * groupW + (groupW - (barW * 2 + 2)) / 2
                 const xExp = xInc + barW + 2
+                const groupCenterX = i * groupW + groupW / 2
 
-                const hInc = (m.income / maxVal) * 135
-                const hExp = (m.expense / maxVal) * 135
+                const hInc = (m.income / maxVal) * 115
+                const hExp = (m.expense / maxVal) * 115
                 const isHovered = hoveredIdx === i
 
                 return (
@@ -510,26 +508,22 @@ export function MonthlyComparisonChart({ transactions, selectedYear }: { transac
                     onMouseEnter={() => setHoveredIdx(i)}
                     onMouseLeave={() => setHoveredIdx(null)}
                   >
-                    <rect x={i * groupW} y="0" width={groupW} height="160" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="3" />
-                    <rect x={xInc} y={158 - hInc} width={barW} height={Math.max(2, hInc)} rx="2" fill="var(--positive)" opacity={isHovered ? "1" : "0.85"} />
-                    <rect x={xExp} y={158 - hExp} width={barW} height={Math.max(2, hExp)} rx="2" fill="var(--destructive)" opacity={isHovered ? "1" : "0.85"} />
+                    <rect x={i * groupW} y="0" width={groupW} height="170" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="3" />
+                    <rect x={xInc} y={140 - hInc} width={barW} height={Math.max(2, hInc)} rx="2" fill="var(--positive)" opacity={isHovered ? "1" : "0.85"} />
+                    <rect x={xExp} y={140 - hExp} width={barW} height={Math.max(2, hExp)} rx="2" fill="var(--destructive)" opacity={isHovered ? "1" : "0.85"} />
+                    <text
+                      x={groupCenterX}
+                      y="162"
+                      textAnchor="middle"
+                      className={`text-[12px] font-semibold transition-colors ${isHovered ? "fill-foreground font-bold" : "fill-muted-foreground"}`}
+                      style={{ fontSize: "12px" }}
+                    >
+                      {m.label}
+                    </text>
                   </g>
                 )
               })}
             </svg>
-          </div>
-
-          <div className="grid grid-cols-12 text-center text-xs font-semibold text-muted-foreground pt-1">
-            {months.map((m, i) => (
-              <span
-                key={m.label + i}
-                className={`cursor-pointer transition-colors ${hoveredIdx === i ? "text-foreground font-bold" : ""}`}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-              >
-                {m.label}
-              </span>
-            ))}
           </div>
         </div>
       </div>
@@ -585,10 +579,10 @@ export function NetSavingsTrendChart({ transactions, selectedYear }: { transacti
       </div>
 
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[540px] flex flex-col gap-2">
-          <div className="relative h-44 sm:h-48 w-full">
-            <svg viewBox="0 0 600 130" preserveAspectRatio="none" className="h-full w-full" role="img">
-              <line x1="15" y1="70" x2="585" y2="70" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1.5" />
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 160" className="h-full w-full overflow-visible" role="img">
+              <line x1="25" y1="70" x2="575" y2="70" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1.5" />
               <path d={areaD} fill="var(--primary)" opacity="0.18" />
               <path d={pathD} fill="none" stroke="var(--positive)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
 
@@ -610,23 +604,19 @@ export function NetSavingsTrendChart({ transactions, selectedYear }: { transacti
                       strokeWidth={isHovered ? "3" : "2"}
                       className="transition-all duration-200"
                     />
+                    <text
+                      x={p.x}
+                      y="150"
+                      textAnchor="middle"
+                      className={`text-[12px] font-semibold transition-colors ${isHovered ? "fill-foreground font-bold" : "fill-muted-foreground"}`}
+                      style={{ fontSize: "12px" }}
+                    >
+                      {p.label}
+                    </text>
                   </g>
                 )
               })}
             </svg>
-          </div>
-
-          <div className="grid grid-cols-12 text-center text-xs font-semibold text-muted-foreground pt-1">
-            {data.map((d, i) => (
-              <span
-                key={d.label + i}
-                className={`cursor-pointer transition-colors ${activeIdx === i ? "text-foreground font-bold" : ""}`}
-                onMouseEnter={() => setActiveIdx(i)}
-                onMouseLeave={() => setActiveIdx(null)}
-              >
-                {d.label}
-              </span>
-            ))}
           </div>
         </div>
       </div>

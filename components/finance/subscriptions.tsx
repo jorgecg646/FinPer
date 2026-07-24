@@ -14,8 +14,6 @@ export type Subscription = {
 
 const SUBS_KEY = "finflow-subscriptions"
 
-const DEFAULT_SUBS: Subscription[] = []
-
 export function SubscriptionsManager() {
   const [subs, setSubs] = useState<Subscription[]>([])
 
@@ -28,9 +26,9 @@ export function SubscriptionsManager() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(SUBS_KEY)
-      setSubs(stored ? JSON.parse(stored) : DEFAULT_SUBS)
+      setSubs(stored ? JSON.parse(stored) : [])
     } catch {
-      setSubs(DEFAULT_SUBS)
+      setSubs([])
     }
   }, [])
 

@@ -61,7 +61,7 @@ function autoCategory(name: string, type: "income" | "expense"): string {
   if (/gym|gimnasio|decathlon|fitness|nataci[oó]n|deporte|padel|tenis/.test(n)) return "Deporte"
   if (/hotel|vueling|ryanair|iberia|booking|airbnb|viaje|resort/.test(n)) return "Viajes"
   if (/universidad|colegio|academia|libro|curso|udemy|coursera/.test(n)) return "Educación"
-  if (/zara|h&m|inditex|mango|pull and bear|stradivarius|bershka|primark|shein|asos|álvaro moreno|alvaro moreno/.test(n)) return "Ropa"
+  if (/zara|h&m|inditex|mango|pull and bear|stradivarius|bershka|primark|shein|asos|álvaro moreno|alvaro moreno|nike|adidas|puma/.test(n)) return "Ropa"
   if (/trading\s*212|degiro|myinvestor|trade\s*republic|ibkr|interactive\s*brokers|inversi[oó]n|bolsa|cripto|binance|coinbase/.test(n)) return "Inversiones"
   if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|agua\b|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra/.test(n)) return "Vivienda"
 
@@ -163,10 +163,6 @@ function cleanDescription(raw: string): string {
 
   return "Movimiento"
 }
-function getCellText(v: unknown): string {
-  if (v === null || v === undefined) return ""
-  return String(v).trim()
-}
 
 function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
   const results: ParsedTransaction[] = []
@@ -174,19 +170,28 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
 
   const rows = matrix.map((row) => row.map((c) => (c === null || c === undefined ? "" : String(c).trim())))
 
-  const headerIndex = rows.findIndex((row) =>
-    row.length >= 3 &&
-    /fecha\s*operaci[oó]n/i.test(row.join(" ")) &&
-    /concepto/i.test(row.join(" ")) &&
-    /importe/i.test(row.join(" "))
-  )
+  const headerIndex = rows.findIndex((row) => {
+    const line = row.join(" ")
+    return (
+      row.length >= 2 &&
+      (/fecha/i.test(line) || /date/i.test(line)) &&
+      (/concepto|descripci[oó]n|nombre|description|name/i.test(line)) &&
+      (/importe|monto|cantidad|amount|value/i.test(line) || /gasto|ingreso/i.test(line))
+    )
+  })
 
   if (headerIndex < 0) return []
 
   const header = rows[headerIndex].map((h) => h.toLowerCase())
-  const dateCol = header.findIndex((h) => /fecha\s*operaci[oó]n|fecha/i.test(h))
-  const conceptCol = header.findIndex((h) => /concepto/i.test(h))
-  const amountCol = header.findIndex((h) => /importe/i.test(h))
+  const dateCol = header.findIndex((h) => /fecha|date/i.test(h))
+  const conceptCol = header.findIndex((h) => /concepto|descripci[oó]n|nombre|description|name/i.test(h))
+  const typeCol = header.findIndex((h) => /^tipo$|^type$/i.test(h))
+  const categoryCol = header.findIndex((h) => /^categor[ií]a$|^category$/i.test(h))
+  let amountCol = header.findIndex((h) => /importe|monto|cantidad|amount|value/i.test(h))
+
+  if (amountCol < 0) {
+    amountCol = header.findIndex((h) => /gasto|ingreso/i.test(h))
+  }
 
   if (dateCol < 0 || conceptCol < 0 || amountCol < 0) return []
 
@@ -197,8 +202,10 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     const dateRaw = row[dateCol] || ""
     const conceptRaw = row[conceptCol] || ""
     const amountRaw = row[amountCol] || ""
+    const typeRaw = typeCol >= 0 ? (row[typeCol] || "").toLowerCase() : ""
+    const categoryRaw = categoryCol >= 0 ? (row[categoryCol] || "").trim() : ""
 
-    const date = parseSpanishDate(dateRaw)
+    const date = parseSpanishDate(dateRaw) || (dateRaw.match(/^\d{4}-\d{2}-\d{2}$/) ? dateRaw : null)
     if (!date) continue
 
     if (!conceptRaw.trim()) continue
@@ -209,15 +216,28 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     if (!Number.isFinite(amount) || amount <= 0) continue
 
     const description = cleanDescription(conceptRaw)
-    const type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
-    const category = autoCategory(`${conceptRaw} ${description}`, type)
-    const key = `${date}-${amount.toFixed(2)}-${description}`
+
+    let type: "income" | "expense" = "expense"
+    if (typeRaw) {
+      if (/gasto|expense/.test(typeRaw)) {
+        type = "expense"
+      } else if (/ingreso|income/.test(typeRaw)) {
+        type = "income"
+      } else {
+        type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
+      }
+    } else {
+      type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
+    }
+
+    const category = categoryRaw || autoCategory(`${conceptRaw} ${description}`, type)
+    const key = `${date}-${amount.toFixed(2)}-${description}-${type}`
 
     if (seen.has(key)) continue
     seen.add(key)
 
     results.push({
-      id: `xlsx-${i}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `file-${i}-${Math.random().toString(36).slice(2, 7)}`,
       date,
       name: description,
       amount: Math.abs(amount),
@@ -245,10 +265,10 @@ export async function POST(req: NextRequest) {
     }
 
     const lowerName = file.name.toLowerCase()
-    const isXlsx = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")
+    const isSupported = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".csv")
 
-    if (!isXlsx) {
-      return NextResponse.json({ error: "El archivo debe ser un Excel (.xlsx o .xls)" }, { status: 400 })
+    if (!isSupported) {
+      return NextResponse.json({ error: "El archivo debe ser Excel (.xlsx, .xls) o CSV (.csv)" }, { status: 400 })
     }
 
     if (file.size > 20 * 1024 * 1024) {
@@ -258,13 +278,13 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
 
     const XLSX = require("xlsx")
-    const workbook = XLSX.read(buffer, { type: "buffer" })
+    const workbook = XLSX.read(buffer, { type: "buffer", raw: true })
 
     const sheetName =
       workbook.SheetNames.find((n: string) => /movimientos/i.test(n)) || workbook.SheetNames[0]
 
     if (!sheetName) {
-      return NextResponse.json({ error: "No se encontró ninguna hoja en el Excel" }, { status: 422 })
+      return NextResponse.json({ error: "No se encontró ninguna hoja en el archivo" }, { status: 422 })
     }
 
     const sheet = workbook.Sheets[sheetName]
@@ -274,7 +294,7 @@ export async function POST(req: NextRequest) {
     if (!transactions.length) {
       return NextResponse.json(
         {
-          error: "No se detectaron transacciones válidas en el Excel",
+          error: "No se detectaron transacciones válidas en el archivo. Asegúrate de incluir las columnas Fecha, Concepto e Importe.",
           debug: {
             rows: matrix.length,
             sheetName,

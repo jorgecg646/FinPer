@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { ShieldCheck, X, FileText, CheckCircle2 } from "lucide-react"
 import { GoogleIcon } from "@/components/auth/netlify-auth"
 
@@ -14,8 +15,24 @@ export function PrivacyModal({
   onAcceptAndLogin: () => void
 }) {
   const [accepted, setAccepted] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [isOpen])
+
+  if (!isOpen || !mounted) return null
 
   function handleConfirm() {
     if (!accepted) return
@@ -23,8 +40,8 @@ export function PrivacyModal({
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border pb-4">
@@ -103,6 +120,7 @@ export function PrivacyModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
