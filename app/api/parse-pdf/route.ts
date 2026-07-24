@@ -52,6 +52,8 @@ function parseSpanishDate(value: unknown): string | null {
 function autoCategory(name: string, type: "income" | "expense"): string {
   const n = name.toLowerCase()
 
+  if (/devoluci[oó]n|reembolso|refund/.test(n)) return "Reembolso"
+
   if (/amazon|alipay|g2a|apple|google play|pccomponentes|media markt|fnac|ebay|aliexpress/.test(n)) return "Tecnología"
   if (/mercadona|carrefour|lidl|aldi|\bdia\b|supermercado|eroski|hipercor|condis|alcampo|makro|consum/.test(n)) return "Supermercado"
   if (/restaurante|bar\b|cafeter[ií]a|mcdonald|burger|pizza|telepizza|just eat|glovo|uber eat|kfc|dominos|starbucks/.test(n)) return "Restaurantes"
@@ -61,7 +63,7 @@ function autoCategory(name: string, type: "income" | "expense"): string {
   if (/gym|gimnasio|decathlon|fitness|nataci[oó]n|deporte|padel|tenis/.test(n)) return "Deporte"
   if (/hotel|vueling|ryanair|iberia|booking|airbnb|viaje|resort/.test(n)) return "Viajes"
   if (/universidad|colegio|academia|libro|curso|udemy|coursera/.test(n)) return "Educación"
-  if (/zara|h&m|inditex|mango|pull and bear|stradivarius|bershka|primark|shein|asos|álvaro moreno|alvaro moreno|nike|adidas|puma/.test(n)) return "Ropa"
+  if (/zara|h&m|inditex|mango|pull and bear|stradivarius|bershka|primark|shein|asos|álvaro moreno|alvaro moreno|silbon|nike|adidas|puma/.test(n)) return "Ropa"
   if (/trading\s*212|degiro|myinvestor|trade\s*republic|ibkr|interactive\s*brokers|inversi[oó]n|bolsa|cripto|binance|coinbase/.test(n)) return "Inversiones"
   if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|agua\b|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra/.test(n)) return "Vivienda"
 
@@ -69,7 +71,6 @@ function autoCategory(name: string, type: "income" | "expense"): string {
     if (/nomina|sueldo|salario|n[oó]mina/.test(n)) return "Salario"
     if (/freelance|honorarios|factura/.test(n)) return "Freelance"
     if (/alquiler cobrado|renta/.test(n)) return "Alquiler"
-    if (/devoluci[oó]n|reembolso|refund/.test(n)) return "Reembolso"
     if (/bizum|transferencia recibida|ingreso/.test(n)) return "Ocio"
     return "Otros ingresos"
   }
@@ -106,6 +107,7 @@ function cleanDescription(raw: string): string {
 
   const low = s.toLowerCase()
 
+  if (/devoluci[oó]n|reembolso|refund/.test(low)) return "Devolución"
   if (/amazon/.test(low)) return "Amazon"
   if (/alipay/.test(low)) return "Alipay"
   if (/g2a/.test(low)) return "G2A"
@@ -118,6 +120,7 @@ function cleanDescription(raw: string): string {
   if (/zalando/.test(low)) return "Zalando"
   if (/nike/.test(low)) return "Nike"
   if (/alvaro moreno|álvaro moreno/.test(low)) return "Álvaro Moreno"
+  if (/silbon/.test(low)) return "Silbon"
   if (/trading 212/.test(low)) return "Trading 212"
   if (/junta andalucia|junta de andalucia/.test(low)) return "Junta Andalucía"
   if (/paypal/.test(low)) return "PayPal"
@@ -215,7 +218,12 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     const amount = parseEuAmount(amountRaw.replace(/[+\-]/g, ""))
     if (!Number.isFinite(amount) || amount <= 0) continue
 
-    const description = cleanDescription(conceptRaw)
+    let description = cleanDescription(conceptRaw)
+    const isDevolucion = /devoluci[oó]n|reembolso|refund/i.test(conceptRaw) || /devoluci[oó]n|reembolso|refund/i.test(description) || /devoluci[oó]n|reembolso/i.test(categoryRaw)
+
+    if (isDevolucion) {
+      description = "Devolución"
+    }
 
     let type: "income" | "expense" = "expense"
     if (typeRaw) {
@@ -230,7 +238,7 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
       type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
     }
 
-    const category = categoryRaw || autoCategory(`${conceptRaw} ${description}`, type)
+    const category = isDevolucion ? "Reembolso" : (categoryRaw || autoCategory(`${conceptRaw} ${description}`, type))
     const key = `${date}-${amount.toFixed(2)}-${description}-${type}`
 
     if (seen.has(key)) continue

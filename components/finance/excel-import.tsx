@@ -44,6 +44,7 @@ const EXPENSE_CATS = [
   "Restaurantes",
   "Tecnología",
   "Deporte",
+  "Reembolso",
   "General",
 ] as const
 
@@ -172,7 +173,14 @@ function TxRow({
       <td className="px-2 py-2">
         <input
           value={tx.name}
-          onChange={(e) => onChange({ name: e.target.value })}
+          onChange={(e) => {
+            const val = e.target.value
+            if (/devoluci[oó]n|reembolso|refund/i.test(val)) {
+              onChange({ name: "Devolución", category: "Reembolso" })
+            } else {
+              onChange({ name: val })
+            }
+          }}
           className="w-full min-w-[140px] rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
         />
       </td>

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, CreditCard, Sun, Moon } from "lucide-react"
+import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, CreditCard, Sun, Moon, TrendingUp } from "lucide-react"
 import { loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
 import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { id: "home",          label: "Inicio",        icon: Home,            href: "/" },
   { id: "income",        label: "Ingresos",      icon: ArrowUpCircle,   href: "/ingresos" },
   { id: "expenses",      label: "Gastos",        icon: ArrowDownCircle, href: "/gastos" },
+  { id: "investments",   label: "Inversiones",   icon: TrendingUp,      href: "/inversiones" },
   { id: "budgets",       label: "Presupuestos",  icon: Target,          href: "/presupuestos" },
   { id: "subscriptions", label: "Suscripciones", icon: CreditCard,      href: "/suscripciones" },
   { id: "profile",       label: "Perfil",        icon: User,            href: "/perfil" },

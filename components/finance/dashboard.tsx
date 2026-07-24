@@ -11,13 +11,30 @@ import { UserAvatar } from "@/components/finance/navigation"
 // Topbar — desktop-only greeting header with interactive Notifications
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour >= 6 && hour < 12) return "Buenos días"
+  if (hour >= 12 && hour < 21) return "Buenas tardes"
+  return "Buenas noches"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Topbar — desktop-only greeting header with interactive Notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function Topbar() {
   const { user: authUser } = useAuth()
   const [localProfile, setLocalProfile] = useState(loadLocalProfile)
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(true)
+  const [greeting, setGreeting] = useState("Buenos días")
 
   useEffect(() => {
+    setGreeting(getGreeting())
     function update() {
       setLocalProfile(loadLocalProfile())
     }
@@ -38,7 +55,7 @@ export function Topbar() {
   return (
     <header className="hidden items-start justify-between gap-4 lg:flex relative">
       <div>
-        <p className="text-sm text-muted-foreground">Buenos días,</p>
+        <p className="text-sm text-muted-foreground">{greeting},</p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground text-balance">{displayName}</h1>
       </div>
       <div className="flex items-center gap-3">
@@ -96,7 +113,7 @@ export function Topbar() {
 // BalanceCard — main card with balance + monthly bar chart
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function BalanceCard({ balance, monthly }: { balance: number; monthly: Summary["monthly"] }) {
+export function BalanceCard({ balance, monthly, year }: { balance: number; monthly: Summary["monthly"]; year?: number }) {
   const [hidden, setHidden] = useState(false)
   const maxAbs = Math.max(1, ...monthly.map((m) => Math.abs(m.net)))
 
@@ -104,7 +121,7 @@ export function BalanceCard({ balance, monthly }: { balance: number; monthly: Su
     <section className="relative overflow-hidden rounded-3xl bg-brand-dark p-6 text-white shadow-md">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-white/60">Balance total</p>
+          <p className="text-sm text-white/60">Balance total {year ? `(${year})` : ""}</p>
           <p className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
             {hidden ? "••••••••" : `$${balance.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </p>
@@ -142,11 +159,11 @@ export function BalanceCard({ balance, monthly }: { balance: number; monthly: Su
 // StatCards — income + expense summary cards (right column)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function StatCards({ income, expenses }: { income: number; expenses: number }) {
+export function StatCards({ income, expenses, year }: { income: number; expenses: number; year?: number }) {
   return (
     <div className="flex flex-col gap-4">
-      <StatCard label="Ingresos" amount={income} positive />
-      <StatCard label="Gastos" amount={expenses} />
+      <StatCard label={`Ingresos ${year ? `(${year})` : ""}`} amount={income} positive />
+      <StatCard label={`Gastos ${year ? `(${year})` : ""}`} amount={expenses} />
     </div>
   )
 }

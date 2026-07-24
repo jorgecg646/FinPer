@@ -114,10 +114,16 @@ export type ProfileStats = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function toTx(row: typeof transactions.$inferSelect): Tx {
+  let name = row.name
+  let category = row.category
+  if (/devoluci[oó]n|reembolso|refund/i.test(name) || /devoluci[oó]n|reembolso/i.test(category)) {
+    name = "Devolución"
+    category = "Reembolso"
+  }
   return {
     id: row.id,
-    name: row.name,
-    category: row.category,
+    name,
+    category,
     type: row.type as TxType,
     amount: Number(row.amount),
     occurredAt: (row.occurredAt as Date).toISOString(),
@@ -125,10 +131,16 @@ function toTx(row: typeof transactions.$inferSelect): Tx {
 }
 
 function validate(input: TxInput) {
-  const name = input.name?.trim()
-  const category = input.category?.trim() || "General"
+  let name = input.name?.trim()
+  let category = input.category?.trim() || "General"
   const type: TxType = input.type === "income" ? "income" : "expense"
   const amount = Math.abs(Number(input.amount))
+
+  if ((name && /devoluci[oó]n|reembolso|refund/i.test(name)) || (category && /devoluci[oó]n|reembolso/i.test(category))) {
+    name = "Devolución"
+    category = "Reembolso"
+  }
+
   if (!name) throw new Error("El nombre es obligatorio")
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("El importe debe ser mayor que 0")
   return { name, category, type, amount }

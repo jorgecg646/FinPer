@@ -2,7 +2,13 @@ import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import { Topbar, BalanceCard, StatCards } from "@/components/finance/dashboard"
 import { RecentTransactions } from "@/components/finance/transactions"
-import { MonthlyComparisonChart, NetSavingsTrendChart, FinancialOverviewRatioChart, YearSelector } from "@/components/finance/charts"
+import {
+  MonthlyComparisonChart,
+  NetSavingsTrendChart,
+  FinancialOverviewRatioChart,
+  MoneyFlowSankeyChart,
+  YearSelector,
+} from "@/components/finance/charts"
 
 import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
 
@@ -30,18 +36,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ y
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left/Main Column */}
         <div className="flex flex-col gap-6 xl:col-span-2">
-          <BalanceCard balance={summary.balance} monthly={summary.monthly} />
-          
+          <BalanceCard balance={summary.balance} monthly={summary.monthly} year={selectedYear} />
+
+          {/* 2nd position: Movimientos */}
+          <RecentTransactions transactions={transactions} />
+
+          {/* Charts */}
           <FinancialOverviewRatioChart income={summary.income} expenses={summary.expenses} />
           <MonthlyComparisonChart transactions={transactions} selectedYear={selectedYear} />
           <NetSavingsTrendChart transactions={transactions} selectedYear={selectedYear} />
 
-          <RecentTransactions transactions={transactions} />
+          {/* Last chart: Diagrama de Flujo (Sankey) */}
+          <MoneyFlowSankeyChart transactions={transactions} />
         </div>
 
         {/* Right Column */}
         <div className="flex flex-col gap-6">
-          <StatCards income={summary.income} expenses={summary.expenses} />
+          <StatCards income={summary.income} expenses={summary.expenses} year={selectedYear} />
         </div>
       </div>
     </LayoutShell>

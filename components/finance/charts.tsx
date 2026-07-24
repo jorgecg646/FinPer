@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { Summary, Tx } from "@/app/actions"
+import { isInvestmentTx } from "@/lib/finance"
 import { Calendar, ChevronDown } from "lucide-react"
 
 const PALETTE = [
@@ -351,6 +352,7 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-1.5 w-full">
           {slices.map((s) => {
             const isActive = activeCategory === s.cat
+            const isInvestment = /invers/i.test(s.cat)
             return (
               <div
                 key={s.cat}
@@ -361,7 +363,14 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
                 }`}
               >
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{s.cat}</span>
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground flex items-center gap-1.5">
+                  {s.cat}
+                  {isInvestment && (
+                    <span className="rounded-full bg-positive/10 border border-positive/30 px-1.5 py-0.5 text-[9px] font-bold text-positive shrink-0">
+                      💼 Ahorro/Activo
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs font-bold text-foreground">
                   ${s.amount.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
                 </span>
@@ -373,6 +382,9 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
           })}
         </div>
       </div>
+      <p className="mt-3 text-[11px] text-muted-foreground font-medium flex items-center gap-1 border-t border-border/40 pt-2">
+        💡 <strong className="text-foreground">Opción A:</strong> Las inversiones computan como acumulación de patrimonio y ahorro, no como consumo de dinero.
+      </p>
     </section>
   )
 }
@@ -733,6 +745,595 @@ export function FinancialOverviewRatioChart({ income, expenses }: { income: numb
               <p className="text-[10px] text-muted-foreground font-medium">Ahorro Generado</p>
               <p className="text-xs font-bold text-positive">${savings.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. MoneyFlowSankeyChart — Interactive Sankey Flow of Income -> Pool -> Expenses/Savings
+// ─────────────────────────────────────────────────────────────────────────────
+
+function layoutSankeyNodes(
+  entries: [string, number][],
+  totalVal: number,
+  x: number,
+  usableH: number,
+  topY: number,
+  colorOffset: number,
+  prefix: string = "node"
+) {
+  const count = entries.length
+  if (count === 0) return []
+
+  const gap = 8
+  const totalGaps = (count - 1) * gap
+  const netH = Math.max(20, usableH - totalGaps)
+
+  const rawHeights = entries.map(([, val]) => Math.max(14, (val / (totalVal || 1)) * netH))
+  const rawSum = rawHeights.reduce((s, h) => s + h, 0)
+
+  const scale = rawSum > netH ? netH / rawSum : 1
+  const finalHeights = rawHeights.map((h) => h * scale)
+
+  let currY = topY
+  return entries.map(([cat, val], i) => {
+    const h = finalHeights[i]
+    const y = currY
+    currY += h + gap
+    return {
+      id: `${prefix}-${cat}-${i}`,
+      label: cat,
+      value: val,
+      x,
+      y,
+      height: h,
+      color: PALETTE[(i + colorOffset) % PALETTE.length],
+    }
+  })
+}
+
+export function MoneyFlowSankeyChart({ transactions }: { transactions: Tx[] }) {
+  const [hoveredFlow, setHoveredFlow] = useState<string | null>(null)
+
+  const incomeMap = new Map<string, number>()
+  const expenseMap = new Map<string, number>()
+
+  for (const t of transactions) {
+    if (t.type === "income") {
+      incomeMap.set(t.category, (incomeMap.get(t.category) ?? 0) + t.amount)
+    } else {
+      expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount)
+    }
+  }
+
+  const incomeEntries = [...incomeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+  const expenseEntries = [...expenseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+
+  const totalIncome = incomeEntries.reduce((s, [, v]) => s + v, 0)
+  const totalExpense = expenseEntries.reduce((s, [, v]) => s + v, 0)
+  const netSavings = Math.max(0, totalIncome - totalExpense)
+
+  if (totalIncome === 0 && totalExpense === 0) {
+    return (
+      <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+        <h2 className="text-sm font-bold text-foreground sm:text-base">Diagrama de Flujo de Dinero (Sankey)</h2>
+        <p className="text-xs text-muted-foreground text-center py-6">Sin datos suficientes para trazar el flujo.</p>
+      </section>
+    )
+  }
+
+  const width = 960
+  const height = 340
+  const topY = 32
+  const usableH = 270
+
+  const leftX = 230
+  const middleX = 480
+  const rightX = 730
+  const nodeWidth = 8
+
+  const leftNodes = layoutSankeyNodes(incomeEntries, totalIncome, leftX, usableH, topY, 2, "inc")
+
+  const rightRawEntries = [...expenseEntries]
+  if (netSavings > 0) {
+    rightRawEntries.push(["Ahorro Neto", netSavings])
+  }
+  const rightTotalPool = totalExpense + netSavings
+
+  const rightNodes = layoutSankeyNodes(rightRawEntries, rightTotalPool, rightX, usableH, topY, 0, "exp")
+
+  const poolH = usableH
+  const poolY = topY
+  const poolNode = { id: "pool", label: "Presupuesto", value: totalIncome, x: middleX, y: poolY, height: poolH, color: "var(--primary)" }
+
+  let incomeCumY = poolY
+  const dxLeft = middleX - (leftX + nodeWidth)
+  const leftRibbons = leftNodes.map((node) => {
+    const ribbonH = (node.value / (totalIncome || 1)) * poolH
+    const yLeft1 = node.y
+    const yLeft2 = node.y + node.height
+    const yMid1 = incomeCumY
+    const yMid2 = incomeCumY + ribbonH
+
+    const c1X = leftX + nodeWidth + dxLeft * 0.45
+    const c2X = middleX - dxLeft * 0.45
+
+    const path = `M ${leftX + nodeWidth} ${yLeft1}
+                 C ${c1X} ${yLeft1}, ${c2X} ${yMid1}, ${middleX} ${yMid1}
+                 L ${middleX} ${yMid2}
+                 C ${c2X} ${yMid2}, ${c1X} ${yLeft2}, ${leftX + nodeWidth} ${yLeft2} Z`
+
+    incomeCumY += ribbonH
+    return { id: `flow-${node.id}`, label: node.label, type: "Ingreso", path, color: node.color, value: node.value }
+  })
+
+  let expenseCumY = poolY
+  const dxRight = rightX - (middleX + nodeWidth)
+  const rightRibbons = rightNodes.map((node) => {
+    const ribbonH = (node.value / (rightTotalPool || 1)) * poolH
+    const yMid1 = expenseCumY
+    const yMid2 = expenseCumY + ribbonH
+    const yRight1 = node.y
+    const yRight2 = node.y + node.height
+
+    const c1X = middleX + nodeWidth + dxRight * 0.45
+    const c2X = rightX - dxRight * 0.45
+
+    const path = `M ${middleX + nodeWidth} ${yMid1}
+                 C ${c1X} ${yMid1}, ${c2X} ${yRight1}, ${rightX} ${yRight1}
+                 L ${rightX} ${yRight2}
+                 C ${c2X} ${yRight2}, ${c1X} ${yMid2}, ${middleX + nodeWidth} ${yMid2} Z`
+
+    expenseCumY += ribbonH
+    return { id: `flow-${node.id}`, label: node.label, type: "Destino", path, color: node.color, value: node.value }
+  })
+
+  const activeInfo = hoveredFlow
+    ? [...leftRibbons, ...rightRibbons].find((r) => r.id === hoveredFlow)
+    : null
+
+  return (
+    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold text-foreground sm:text-base">Diagrama de Flujo de Dinero (Sankey)</h2>
+          <p className="text-xs text-muted-foreground">Origen de Ingresos → Caja Central → Destino de Gastos y Ahorro</p>
+        </div>
+        {activeInfo && (
+          <div className="text-xs font-semibold bg-secondary px-3 py-1 rounded-full text-foreground self-start sm:self-auto">
+            {activeInfo.type}: {activeInfo.label}: +${activeInfo.value.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 w-full overflow-x-auto pb-2 scrollbar-thin">
+        <div className="w-full min-w-[650px]">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-full" preserveAspectRatio="xMidYMid meet" role="img">
+            {[...leftRibbons, ...rightRibbons].map((r) => {
+              const isHovered = hoveredFlow === r.id
+              return (
+                <path
+                  key={r.id}
+                  d={r.path}
+                  fill={r.color}
+                  opacity={hoveredFlow === null || isHovered ? "0.55" : "0.15"}
+                  className="cursor-pointer transition-all duration-200 hover:opacity-85"
+                  onMouseEnter={() => setHoveredFlow(r.id)}
+                  onMouseLeave={() => setHoveredFlow(null)}
+                />
+              )
+            })}
+
+            {leftNodes.map((n) => {
+              const displayLabel = n.label.length > 20 ? `${n.label.slice(0, 18)}…` : n.label
+              return (
+                <g key={n.id}>
+                  <rect x={n.x} y={n.y} width={nodeWidth} height={n.height} rx="4" fill={n.color} />
+                  <text x={n.x - 10} y={n.y + Math.max(10, n.height / 2 + 4)} textAnchor="end" className="fill-foreground text-[11px] font-semibold">
+                    {displayLabel} (${(n.value).toLocaleString("es-ES", { maximumFractionDigits: 0 })})
+                  </text>
+                </g>
+              )
+            })}
+
+            <g key={poolNode.id}>
+              <rect x={poolNode.x} y={poolNode.y} width={nodeWidth} height={poolNode.height} rx="4" fill="var(--primary)" opacity="0.9" />
+              <text x={poolNode.x + nodeWidth / 2} y={poolNode.y - 10} textAnchor="middle" className="fill-foreground text-[11px] font-bold">
+                Fondo (${totalIncome.toLocaleString("es-ES", { maximumFractionDigits: 0 })})
+              </text>
+            </g>
+
+            {rightNodes.map((n) => {
+              const displayLabel = n.label.length > 20 ? `${n.label.slice(0, 18)}…` : n.label
+              return (
+                <g key={n.id}>
+                  <rect x={n.x} y={n.y} width={nodeWidth} height={n.height} rx="4" fill={n.color} />
+                  <text x={n.x + nodeWidth + 10} y={n.y + Math.max(10, n.height / 2 + 4)} textAnchor="start" className="fill-foreground text-[11px] font-semibold">
+                    {displayLabel} (${(n.value).toLocaleString("es-ES", { maximumFractionDigits: 0 })})
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. YearOverYearComparisonChart — Year vs Previous Year Comparison
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function YearOverYearComparisonChart({ transactions, selectedYear }: { transactions: Tx[]; selectedYear: number }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const prevYear = selectedYear - 1
+
+  const currentYearData = getYearMonthsData(transactions, selectedYear)
+  const prevYearData = getYearMonthsData(transactions, prevYear)
+
+  const maxExpense = Math.max(
+    1,
+    ...currentYearData.map((m) => m.expense),
+    ...prevYearData.map((m) => m.expense)
+  )
+
+  const totalCurrent = currentYearData.reduce((s, m) => s + m.expense, 0)
+  const totalPrev = prevYearData.reduce((s, m) => s + m.expense, 0)
+  const diffPct = totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : 0
+
+  return (
+    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold text-foreground sm:text-base">Comparativa Interanual ({selectedYear} vs {prevYear})</h2>
+          <p className="text-xs text-muted-foreground">Evolución del gasto mensual respecto al año anterior</p>
+        </div>
+        <div className="flex items-center gap-3 text-xs font-semibold self-start sm:self-auto bg-secondary px-3 py-1 rounded-full">
+          <div className="flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+            <span>{selectedYear}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+            <span>{prevYear}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+              <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
+
+              {currentYearData.map((mCurr, i) => {
+                const mPrev = prevYearData[i] || { expense: 0 }
+                const groupW = 600 / currentYearData.length
+                const barW = 9
+                const xCurr = i * groupW + (groupW - (barW * 2 + 2)) / 2
+                const xPrev = xCurr + barW + 2
+                const groupCenterX = i * groupW + groupW / 2
+
+                const hCurr = (mCurr.expense / maxExpense) * 115
+                const hPrev = (mPrev.expense / maxExpense) * 115
+                const isHovered = hoveredIdx === i
+
+                return (
+                  <g
+                    key={mCurr.label + i}
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredIdx(i)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                  >
+                    <rect x={i * groupW} y="0" width={groupW} height="170" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="3" />
+                    <rect x={xCurr} y={140 - hCurr} width={barW} height={Math.max(2, hCurr)} rx="2" fill="var(--primary)" opacity={isHovered ? "1" : "0.9"} />
+                    <rect x={xPrev} y={140 - hPrev} width={barW} height={Math.max(2, hPrev)} rx="2" fill="var(--muted-foreground)" opacity={isHovered ? "0.7" : "0.35"} />
+                    <text
+                      x={groupCenterX}
+                      y="162"
+                      textAnchor="middle"
+                      className={`text-[12px] font-semibold transition-colors ${isHovered ? "fill-foreground font-bold" : "fill-muted-foreground"}`}
+                      style={{ fontSize: "12px" }}
+                    >
+                      {mCurr.label}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 min-h-[22px] flex items-center justify-between text-xs pt-1 border-t border-border/40">
+        {hoveredIdx !== null ? (
+          <div className="flex items-center gap-3 bg-secondary/80 px-3 py-1 rounded-full font-medium w-full justify-center">
+            <span className="font-bold text-foreground">{currentYearData[hoveredIdx].label}:</span>
+            <span className="text-foreground">{selectedYear}: ${currentYearData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
+            <span className="text-muted-foreground">{prevYear}: ${prevYearData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between w-full text-muted-foreground text-[11px]">
+            <span>Total {selectedYear}: <strong className="text-foreground">${totalCurrent.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</strong></span>
+            <span>Variación: <strong className={diffPct <= 0 ? "text-positive" : "text-destructive"}>{diffPct <= 0 ? "" : "+"}{diffPct.toFixed(1)}% vs {prevYear}</strong></span>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. MicroExpensesChart — Analysis of Micro-Expenses (<= 10€)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function MicroExpensesChart({ transactions }: { transactions: Tx[] }) {
+  const microTxs = transactions.filter((t) => t.type === "expense" && t.amount <= 10)
+  const totalExpenseTxs = transactions.filter((t) => t.type === "expense")
+
+  const totalMicroAmount = microTxs.reduce((s, t) => s + t.amount, 0)
+  const totalAllExpenseAmount = totalExpenseTxs.reduce((s, t) => s + t.amount, 0)
+  const microPct = totalAllExpenseAmount > 0 ? (totalMicroAmount / totalAllExpenseAmount) * 100 : 0
+  const avgMicroTicket = microTxs.length > 0 ? totalMicroAmount / microTxs.length : 0
+
+  const catMap = new Map<string, number>()
+  for (const t of microTxs) {
+    catMap.set(t.category, (catMap.get(t.category) ?? 0) + t.amount)
+  }
+  const topCategories = [...catMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  return (
+    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold text-foreground sm:text-base">Análisis de "Gastos Hormiga" (≤ 10€)</h2>
+          <p className="text-xs text-muted-foreground">Fuga de capital en pequeñas compras cotidianas</p>
+        </div>
+        <div className="self-start sm:self-auto rounded-full bg-amber-500/10 text-amber-500 px-3 py-1 text-xs font-bold">
+          {microTxs.length} micro-compras
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
+          <p className="text-[10px] text-muted-foreground font-semibold">Total Gastos Hormiga</p>
+          <p className="text-base font-bold text-destructive mt-0.5">${totalMicroAmount.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
+          <p className="text-[10px] text-muted-foreground font-semibold">% del Gasto Total</p>
+          <p className="text-base font-bold text-foreground mt-0.5">{microPct.toFixed(1)}%</p>
+        </div>
+        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
+          <p className="text-[10px] text-muted-foreground font-semibold">Ticket Medio Hormiga</p>
+          <p className="text-base font-bold text-foreground mt-0.5">${avgMicroTicket.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <h3 className="text-xs font-bold text-foreground mb-2">Categorías con más Gastos Hormiga</h3>
+        {topCategories.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No se registran gastos inferiores a 10€.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {topCategories.map(([cat, val], i) => {
+              const pct = totalMicroAmount > 0 ? (val / totalMicroAmount) * 100 : 0
+              return (
+                <div key={cat} className="flex items-center justify-between text-xs font-medium bg-card p-2 rounded-xl border border-border/40">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
+                    <span className="text-foreground">{cat}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-foreground">${val.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
+                    <span className="text-[10px] text-muted-foreground w-8 text-right">{pct.toFixed(0)}%</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+export function InvestmentCategoryChart({ transactions, selectedYear }: { transactions: Tx[]; selectedYear?: number }) {
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+
+  const invTxs = transactions.filter((t) => {
+    if (!isInvestmentTx(t)) return false
+    if (selectedYear !== undefined) {
+      const d = new Date(t.occurredAt)
+      return d.getFullYear() === selectedYear || d.getUTCFullYear() === selectedYear
+    }
+    return true
+  })
+
+  const byCategory = new Map<string, number>()
+  for (const t of invTxs) {
+    const cat = t.category.toLowerCase().includes("invers") || t.category === "General" ? t.name || t.category : t.category
+    byCategory.set(cat, (byCategory.get(cat) ?? 0) + t.amount)
+  }
+
+  const entries = [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+  const total = entries.reduce((s, [, v]) => s + v, 0)
+
+  if (total === 0) {
+    return (
+      <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+        <h2 className="text-sm font-bold text-foreground sm:text-base">Distribución por Tipo de Activo</h2>
+        <p className="mt-6 mb-4 text-center text-sm text-muted-foreground">Sin movimientos de inversión registrados aún.</p>
+      </section>
+    )
+  }
+
+  let currentAngle = 0
+  const slices = entries.map(([cat, amount], i) => {
+    const deg = (amount / total) * 360
+    const path = arcPath(100, 100, 80, currentAngle, currentAngle + deg - 0.5)
+    currentAngle += deg
+    return { cat, amount, path, color: PALETTE[(i + 1) % PALETTE.length] }
+  })
+
+  const activeSlice = activeCategory ? slices.find((s) => s.cat === activeCategory) : null
+
+  return (
+    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+      <h2 className="text-sm font-bold text-foreground sm:text-base">Distribución por Tipo de Activo</h2>
+
+      <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
+        <div className="relative shrink-0 flex justify-center items-center">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img">
+            {slices.map((s) => {
+              const isActive = activeCategory === s.cat
+              return (
+                <path
+                  key={s.cat}
+                  d={s.path}
+                  fill={s.color}
+                  opacity={activeCategory === null || isActive ? "0.9" : "0.3"}
+                  className="cursor-pointer transition-all duration-200 hover:opacity-100"
+                  onMouseEnter={() => setActiveCategory(s.cat)}
+                  onMouseLeave={() => setActiveCategory(null)}
+                />
+              )
+            })}
+            <circle cx="100" cy="100" r="48" fill="var(--card)" />
+            <text x="100" y="90" textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">
+              {activeSlice ? activeSlice.cat : "Total Invertido"}
+            </text>
+            <text x="100" y="110" textAnchor="middle" fontSize="14" fontWeight="bold" fill="var(--positive)">
+              +${(activeSlice ? activeSlice.amount : total).toLocaleString("es-ES", { maximumFractionDigits: 0 })}
+            </text>
+            {activeSlice && (
+              <text x="100" y="125" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--muted-foreground)">
+                {((activeSlice.amount / total) * 100).toFixed(1)}%
+              </text>
+            )}
+          </svg>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-1.5 w-full">
+          {slices.map((s) => {
+            const isActive = activeCategory === s.cat
+            return (
+              <div
+                key={s.cat}
+                onMouseEnter={() => setActiveCategory(s.cat)}
+                onMouseLeave={() => setActiveCategory(null)}
+                className={`flex items-center gap-2 p-1.5 rounded-xl cursor-pointer transition-all ${
+                  isActive ? "bg-secondary" : "hover:bg-secondary/50"
+                }`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{s.cat}</span>
+                <span className="text-xs font-bold text-positive">
+                  +${s.amount.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+                </span>
+                <span className="w-10 text-right text-[10px] font-semibold text-muted-foreground">
+                  {((s.amount / total) * 100).toFixed(1)}%
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. InvestmentMonthlyBarChart — Monthly Investment Progress
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function InvestmentMonthlyBarChart({ transactions, selectedYear }: { transactions: Tx[]; selectedYear: number }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
+  const invTxs = transactions.filter((t) => {
+    const td = new Date(t.occurredAt)
+    const isYearMatch = td.getFullYear() === selectedYear || td.getUTCFullYear() === selectedYear
+    return isYearMatch && isInvestmentTx(t)
+  })
+
+  const monthlyData: { label: string; amount: number }[] = []
+  for (let m = 0; m < 12; m++) {
+    let amt = 0
+    for (const t of invTxs) {
+      const td = new Date(t.occurredAt)
+      if (td.getMonth() === m) amt += t.amount
+    }
+    monthlyData.push({ label: MONTH_LABELS[m], amount: amt })
+  }
+
+  const maxVal = Math.max(1, ...monthlyData.map((m) => m.amount))
+
+  return (
+    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+        <div>
+          <h2 className="text-sm font-bold text-foreground sm:text-base">Inversión Mensual ({selectedYear})</h2>
+          <p className="text-xs text-muted-foreground">Aportaciones de patrimonio de Enero a Diciembre</p>
+        </div>
+        {hoveredIdx !== null && (
+          <div className="text-xs font-semibold text-positive bg-positive/10 px-3 py-1 rounded-full self-start sm:self-auto">
+            {monthlyData[hoveredIdx].label}: +${monthlyData[hoveredIdx].amount.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
+        <div className="w-[600px] sm:w-full flex flex-col gap-2">
+          <div className="relative h-48 w-full">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+              <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
+              <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
+
+              {monthlyData.map((m, i) => {
+                const groupW = 600 / monthlyData.length
+                const barW = 18
+                const x = i * groupW + (groupW - barW) / 2
+                const groupCenterX = i * groupW + groupW / 2
+                const barHeight = (m.amount / maxVal) * 115
+                const isHovered = hoveredIdx === i
+
+                return (
+                  <g
+                    key={m.label + i}
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredIdx(i)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                  >
+                    <rect x={i * groupW} y="0" width={groupW} height="170" fill="var(--primary)" opacity={isHovered ? "0.08" : "0"} rx="4" />
+                    <rect
+                      x={x}
+                      y={140 - barHeight}
+                      width={barW}
+                      height={Math.max(2, barHeight)}
+                      rx="4"
+                      fill="#2fa971"
+                      opacity={isHovered ? "1" : "0.85"}
+                      className="transition-all duration-200"
+                    />
+                    <text
+                      x={groupCenterX}
+                      y="162"
+                      textAnchor="middle"
+                      className={`text-[12px] font-semibold transition-colors ${isHovered ? "fill-foreground font-bold" : "fill-muted-foreground"}`}
+                      style={{ fontSize: "12px" }}
+                    >
+                      {m.label}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
           </div>
         </div>
       </div>

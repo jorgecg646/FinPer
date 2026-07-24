@@ -1,6 +1,13 @@
 import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
-import { ExpenseChart, ExpenseMonthlyBarChart, ExpenseCategoryProgressChart, YearSelector } from "@/components/finance/charts"
+import {
+  ExpenseChart,
+  ExpenseMonthlyBarChart,
+  ExpenseCategoryProgressChart,
+  YearOverYearComparisonChart,
+  MicroExpensesChart,
+  YearSelector,
+} from "@/components/finance/charts"
 import { RecentTransactions } from "@/components/finance/transactions"
 import { TrendingDown } from "lucide-react"
 
@@ -44,14 +51,19 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
       </div>
 
       <div className="mt-8 flex flex-col gap-6">
-        <ExpenseMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />
-        
+        {/* Top Grid: Gastos por Mes (2026) side-by-side with Gastos por Categoría */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ExpenseMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />
           <ExpenseChart transactions={expenseTransactions} />
-          <ExpenseCategoryProgressChart transactions={expenseTransactions} />
         </div>
 
-        <RecentTransactions transactions={transactions.filter(t => t.type === "expense")} showAll typeFilter="expense" />
+        {/* 2nd Section: Movimientos */}
+        <RecentTransactions transactions={transactions.filter(t => t.type === "expense")} showAll typeFilter="expense" selectedYear={selectedYear} />
+
+        {/* 3rd Section: Restantes gráficas */}
+        <ExpenseCategoryProgressChart transactions={expenseTransactions} />
+        <YearOverYearComparisonChart transactions={transactions} selectedYear={selectedYear} />
+        <MicroExpensesChart transactions={expenseTransactions} />
       </div>
     </LayoutShell>
   )

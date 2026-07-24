@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
+import { useState, useEffect, useTransition, useMemo } from "react"
 import {
   Plus, Pencil, Trash2, ArrowDownLeft, ArrowUpRight, Search, Download, X, ChevronDown, CheckSquare, Square,
   Briefcase, Laptop, TrendingUp, Home, Gift, RefreshCw, DollarSign,
@@ -21,7 +21,7 @@ import { ExcelImportButton } from "@/components/finance/excel-import"
 // ─────────────────────────────────────────────────────────────────────────────
 
 const INCOME_CATEGORIES = ["Salario", "Freelance", "Inversiones", "Alquiler", "Bonificación", "Regalo", "Reembolso", "Ocio", "Otros ingresos"]
-const EXPENSE_CATEGORIES = ["Comida", "Supermercado", "Transporte", "Vivienda", "Ocio", "Salud", "Educación", "Suscripciones", "Ropa", "Viajes", "Restaurantes", "Tecnología", "Deporte", "General"]
+const EXPENSE_CATEGORIES = ["Comida", "Supermercado", "Transporte", "Vivienda", "Ocio", "Salud", "Educación", "Suscripciones", "Ropa", "Viajes", "Restaurantes", "Tecnología", "Deporte", "Inversiones", "Reembolso", "General"]
 
 function getCategoryIcon(category: string, type: TxType) {
   switch (category) {
@@ -49,6 +49,7 @@ function getCategoryIcon(category: string, type: TxType) {
     case "Viajes": return Plane
     case "Tecnología": return Smartphone
     case "Deporte": return Dumbbell
+    case "Inversiones": return TrendingUp
     case "General": default:
       return type === "income" ? ArrowUpRight : ArrowDownLeft
   }
@@ -102,8 +103,8 @@ export function DeleteConfirmModal({ tx, onConfirm, onClose, isDeleting }: {
             <Trash2 className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">¿Eliminar {isIncome ? "ingreso" : "gasto"}?</h3>
-            <p className="text-xs text-muted-foreground">Esta acción no se puede deshacer.</p>
+            <h3 className="text-base font-bold text-foreground">¿Eliminar movimiento?</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Se borrará permanentemente "{tx.name}".</p>
           </div>
         </div>
 
@@ -134,17 +135,26 @@ export function DeleteConfirmModal({ tx, onConfirm, onClose, isDeleting }: {
 // TransactionForm — modal to create / edit a transaction
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TransactionForm({ initial, onSubmit, onDelete, onClose }: {
+export function TransactionForm({ initial, defaultYear, defaultCategory, onSubmit, onDelete, onClose }: {
   initial?: Tx
+  defaultYear?: number
+  defaultCategory?: string
   onSubmit: (input: TxInput) => Promise<void> | void
   onDelete?: (id: number) => Promise<void> | void
   onClose: () => void
 }) {
   const [type, setType] = useState<TxType>(initial?.type ?? "expense")
   const [name, setName] = useState(initial?.name ?? "")
-  const [category, setCategory] = useState(initial?.category ?? "")
+  const [category, setCategory] = useState(initial?.category ?? defaultCategory ?? "")
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "")
-  const [date, setDate] = useState(todayInput(initial?.occurredAt))
+
+  const defaultIso = initial
+    ? todayInput(initial.occurredAt)
+    : defaultYear && defaultYear !== new Date().getFullYear()
+    ? `${defaultYear}-01-01`
+    : todayInput()
+
+  const [date, setDate] = useState(defaultIso)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -163,9 +173,24 @@ export function TransactionForm({ initial, onSubmit, onDelete, onClose }: {
     const value = Number(amount)
     if (!name.trim()) return setError("Escribe una descripción")
     if (!Number.isFinite(value) || value <= 0) return setError("El importe debe ser mayor que 0")
+
+    let finalName = name.trim()
+    let finalCategory = category || defaultCategory || "General"
+
+    if (/devoluci[oó]n|reembolso|refund/i.test(finalName) || /devoluci[oó]n|reembolso/i.test(finalCategory)) {
+      finalName = "Devolución"
+      finalCategory = "Reembolso"
+    } else if (
+      /trading|invest|broker|myinvestor|trade|crypto|cripto|acciones|fondos|etf|bitcoin|binance|degiro|bolsa/i.test(finalName) &&
+      (finalCategory === "General" || !finalCategory)
+    ) {
+      finalCategory = "Inversiones"
+    }
+
     setSaving(true)
     try {
-      await onSubmit({ name: name.trim(), category: category || "General", type, amount: value, occurredAt: new Date(date).toISOString() })
+      const occurredAtIso = date.includes("T") ? new Date(date).toISOString() : new Date(`${date}T12:00:00Z`).toISOString()
+      await onSubmit({ name: finalName, category: finalCategory, type, amount: value, occurredAt: occurredAtIso })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar")
@@ -276,10 +301,12 @@ export function TransactionForm({ initial, onSubmit, onDelete, onClose }: {
 
 const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
-export function RecentTransactions({ transactions, showAll = false, typeFilter }: {
+export function RecentTransactions({ transactions, showAll = false, typeFilter, selectedYear, defaultCategory }: {
   transactions: Tx[]
   showAll?: boolean
   typeFilter?: FilterType
+  selectedYear?: number
+  defaultCategory?: string
 }) {
   const now = new Date()
   const [formOpen, setFormOpen] = useState(false)
@@ -291,7 +318,14 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>("all")
   // Month/Year filters for the full transaction view (ingresos/gastos pages)
   const [filterMonth, setFilterMonth] = useState<number | "all">("all")
-  const [filterYear, setFilterYear] = useState<number | "all">("all")
+  const [filterYear, setFilterYear] = useState<number | "all">(selectedYear ?? "all")
+
+  useEffect(() => {
+    if (selectedYear !== undefined) {
+      setFilterYear(selectedYear)
+    }
+  }, [selectedYear])
+
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -375,6 +409,12 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
   async function handleSubmit(input: TxInput) {
     if (editing) await updateTransaction(editing.id, input)
     else await createTransaction(input)
+
+    const txYear = input.occurredAt ? new Date(input.occurredAt).getFullYear() : new Date().getFullYear()
+    if (showAll && filterYear !== "all" && filterYear !== txYear) {
+      setFilterYear(txYear)
+    }
+
     dispatchMutation()
   }
 
@@ -671,6 +711,8 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter }
       {formOpen && (
         <TransactionForm
           initial={editing}
+          defaultYear={typeof filterYear === "number" ? filterYear : selectedYear}
+          defaultCategory={defaultCategory}
           onSubmit={handleSubmit}
           onDelete={handleDelete}
           onClose={() => setFormOpen(false)}

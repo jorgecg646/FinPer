@@ -48,7 +48,7 @@ export default async function IngresosPage({ searchParams }: { searchParams: Pro
           <IncomeChart monthly={summary.monthly} year={selectedYear} />
           <IncomeCategoryChart transactions={incomeTransactions} />
         </div>
-        <RecentTransactions transactions={transactions.filter(t => t.type === "income")} showAll typeFilter="income" />
+        <RecentTransactions transactions={transactions.filter(t => t.type === "income")} showAll typeFilter="income" selectedYear={selectedYear} />
       </div>
     </LayoutShell>
   )
