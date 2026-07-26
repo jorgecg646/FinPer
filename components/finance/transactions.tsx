@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useTransition, useMemo } from "react"
+import { useState, useEffect, useTransition, useMemo, useCallback } from "react"
 import {
   Plus, Pencil, Trash2, ArrowDownLeft, ArrowUpRight, Search, Download, X, ChevronDown, CheckSquare, Square,
   Briefcase, Laptop, TrendingUp, Home, Gift, RefreshCw, DollarSign,
-  Utensils, ShoppingCart, Bus, HeartPulse, GraduationCap, Tv, Shirt, Plane, Smartphone, Dumbbell, Tag
+  Utensils, ShoppingCart, Bus, HeartPulse, GraduationCap, Tv, Shirt, Plane, Smartphone, Dumbbell, Tag, Sparkles
 } from "lucide-react"
 import {
   createTransaction,
@@ -159,6 +159,44 @@ export function TransactionForm({ initial, defaultYear, defaultCategory, onSubmi
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
+  // Debounced AI suggestion: fires when name changes and category is empty
+  useEffect(() => {
+    if (category || !name.trim() || name.trim().length < 3) {
+      setAiSuggestion(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setAiLoading(true)
+      try {
+        const res = await fetch("/api/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: [{ id: "suggest", raw: name.trim(), type }],
+          }),
+        })
+        if (res.ok) {
+          const { results } = await res.json()
+          const suggestion = results?.[0]
+          if (suggestion?.aiClassified && suggestion.category) {
+            setAiSuggestion(suggestion.category)
+          } else {
+            setAiSuggestion(null)
+          }
+        }
+      } catch {
+        // Silent fail
+      } finally {
+        setAiLoading(false)
+      }
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [name, type, category])
 
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 
@@ -250,13 +288,35 @@ export function TransactionForm({ initial, defaultYear, defaultCategory, onSubmi
           </div>
           <Field label="Categoría">
             <div className="relative">
-              <select id="tx-category" value={category} onChange={(e) => setCategory(e.target.value)}
+              <select id="tx-category" value={category} onChange={(e) => { setCategory(e.target.value); setAiSuggestion(null) }}
                 className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 pr-9 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring">
                 <option value="">Seleccionar categoría…</option>
                 {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             </div>
+            {/* AI category suggestion */}
+            {!category && (aiLoading || aiSuggestion) && (
+              <div className="flex items-center gap-2 mt-1.5">
+                {aiLoading && !aiSuggestion && (
+                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 animate-pulse text-violet-500" />
+                    Sugiriendo categoría…
+                  </span>
+                )}
+                {aiSuggestion && !aiLoading && (
+                  <button
+                    type="button"
+                    onClick={() => { setCategory(aiSuggestion); setAiSuggestion(null) }}
+                    className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700 transition-colors hover:bg-violet-200"
+                    title="Aplicar sugerencia de Gemini AI"
+                  >
+                    <Sparkles className="h-3 w-3" aria-hidden="true" />
+                    IA sugiere: {aiSuggestion}
+                  </button>
+                )}
+              </div>
+            )}
           </Field>
         </div>
 

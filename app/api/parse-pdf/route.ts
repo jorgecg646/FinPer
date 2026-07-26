@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import type { ClassifyInput, ClassifyResult } from "@/app/api/classify/route"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -13,6 +14,7 @@ export type ParsedTransaction = {
   category: string
   raw: string
   confidence: "high" | "medium" | "low"
+  aiClassified?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,7 +109,15 @@ function cleanDescription(raw: string): string {
 
   const low = s.toLowerCase()
 
-  if (/devoluci[oó]n|reembolso|refund/.test(low)) return "Devolución"
+  if (/devoluci[oó]n|reembolso|refund/i.test(low)) {
+    // Try to extract the merchant name after the refund keyword
+    const merchantMatch = s.match(/(?:devoluci[oó]n|reembolso|refund)\s+(?:compra\s+en\s+|de\s+)?([A-Za-zÁÉÍÓÚáéíóúÑñ0-9&'.\-]{2,})/i)
+    if (merchantMatch?.[1]) {
+      const merchant = merchantMatch[1].trim()
+      return `Devolución ${merchant.charAt(0).toUpperCase() + merchant.slice(1).toLowerCase()}`
+    }
+    return "Devolución"
+  }
   if (/amazon/.test(low)) return "Amazon"
   if (/alipay/.test(low)) return "Alipay"
   if (/g2a/.test(low)) return "G2A"
@@ -221,7 +231,7 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     let description = cleanDescription(conceptRaw)
     const isDevolucion = /devoluci[oó]n|reembolso|refund/i.test(conceptRaw) || /devoluci[oó]n|reembolso|refund/i.test(description) || /devoluci[oó]n|reembolso/i.test(categoryRaw)
 
-    if (isDevolucion) {
+    if (isDevolucion && !description.startsWith("Devolución")) {
       description = "Devolución"
     }
 
@@ -251,7 +261,7 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
       amount: Math.abs(amount),
       type,
       category,
-      raw: JSON.stringify(row),
+      raw: conceptRaw,
       confidence: "high",
     })
   }
@@ -311,6 +321,47 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       )
     }
+
+    // ── Gemini AI Classification ──────────────────────────────────────────────
+    // Enrich name and category using Gemini. Falls back gracefully if unavailable.
+    try {
+      const apiKey = process.env.GEMINI_API_KEY
+      if (apiKey && apiKey !== "TU_CLAVE_AQUI") {
+        const classifyItems: ClassifyInput[] = transactions.map((t) => ({
+          id: t.id,
+          raw: t.raw,
+          type: t.type,
+        }))
+
+        // Call the classify endpoint internally (server-to-server)
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
+          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+
+        const classifyRes = await fetch(`${baseUrl}/api/classify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: classifyItems }),
+        })
+
+        if (classifyRes.ok) {
+          const { results }: { results: ClassifyResult[] } = await classifyRes.json()
+          const resultMap = new Map(results.map((r) => [r.id, r]))
+
+          for (const tx of transactions) {
+            const classified = resultMap.get(tx.id)
+            if (classified) {
+              tx.name = classified.name
+              tx.category = classified.category
+              tx.aiClassified = classified.aiClassified
+            }
+          }
+        }
+      }
+    } catch (classifyErr) {
+      // Non-fatal: keep the regex-classified data
+      console.warn("[parse-pdf] Gemini classification skipped:", classifyErr)
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
       transactions,

@@ -12,6 +12,7 @@ import {
   Loader2,
   FileUp,
   RotateCcw,
+  Sparkles,
 } from "lucide-react"
 
 
@@ -68,7 +69,7 @@ function ConfidenceBadge({ confidence }: { confidence: ParsedTransaction["confid
   )
 }
 
-type EditableTx = ParsedTransaction & { selected: boolean }
+type EditableTx = ParsedTransaction & { selected: boolean; aiClassified?: boolean }
 
 function DropZone({ onFile }: { onFile: (f: File) => void }) {
   const [dragging, setDragging] = useState(false)
@@ -235,6 +236,14 @@ function TxRow({
       <td className="px-2 py-2">
         <ConfidenceBadge confidence={tx.confidence} />
       </td>
+      <td className="px-2 py-2">
+        {tx.aiClassified && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700" title="Clasificado por Gemini AI">
+            <Sparkles className="h-3 w-3" aria-hidden="true" />
+            IA
+          </span>
+        )}
+      </td>
     </tr>
   )
 }
@@ -396,7 +405,11 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
               </div>
               <div className="text-center">
                 <p className="text-sm font-semibold text-foreground">Analizando el Excel</p>
-                <p className="mt-1 text-xs text-muted-foreground">Extrayendo y procesando las transacciones</p>
+                <p className="mt-1 text-xs text-muted-foreground">Extrayendo y clasificando con IA…</p>
+                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" />
+                  Gemini AI
+                </span>
               </div>
             </div>
           )}
@@ -457,6 +470,7 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
                       <th className="px-2 py-2 text-right">Importe</th>
                       <th className="px-2 py-2">Categoría</th>
                       <th className="px-2 py-2">Precisión</th>
+                      <th className="px-2 py-2">IA</th>
                     </tr>
                   </thead>
                   <tbody>
