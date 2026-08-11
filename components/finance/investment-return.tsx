@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { TrendingUp, TrendingDown, Edit3, X, Check, DollarSign, Percent, PieChart } from "lucide-react"
 
-type AnnualRoiMap = Record<number, { roiPct: number; currentValue?: number }>
+type AnnualRoiMap = Record<number, { roiPct: number; currentValue?: number; capitalBase?: number }>
 
 const STORAGE_KEY = "finflow_investment_roi"
 
@@ -37,6 +37,7 @@ export function InvestmentReturnCard({
   const [isEditing, setIsEditing] = useState(false)
   const [inputPct, setInputPct] = useState("")
   const [inputVal, setInputVal] = useState("")
+  const [inputCapital, setInputCapital] = useState("")
 
   useEffect(() => {
     function load() {
@@ -49,18 +50,20 @@ export function InvestmentReturnCard({
 
   const yearData = roiMap[selectedYear] ?? { roiPct: 0 }
   const roiPct = yearData.roiPct || 0
-  
+  const effectiveCapital = yearData.capitalBase ?? totalInvested
+
   // Gain amount
   const gainAmount = yearData.currentValue
-    ? yearData.currentValue - totalInvested
-    : totalInvested * (roiPct / 100)
+    ? yearData.currentValue - effectiveCapital
+    : effectiveCapital * (roiPct / 100)
 
-  const currentValue = yearData.currentValue ?? totalInvested + gainAmount
+  const currentValue = yearData.currentValue ?? effectiveCapital + gainAmount
   const isPositive = roiPct >= 0
 
   function handleOpenEdit() {
     setInputPct(roiPct ? roiPct.toString() : "")
     setInputVal(yearData.currentValue ? yearData.currentValue.toString() : "")
+    setInputCapital(yearData.capitalBase != null ? yearData.capitalBase.toString() : "")
     setIsEditing(true)
   }
 
@@ -68,17 +71,22 @@ export function InvestmentReturnCard({
     const nextMap = { ...getStoredRoiMap() }
     const pctNum = parseFloat(inputPct.replace(",", "."))
     const valNum = parseFloat(inputVal.replace(",", "."))
+    const capNum = parseFloat(inputCapital.replace(",", "."))
+
+    const finalCapital = !isNaN(capNum) && capNum > 0 ? capNum : undefined
+    const baseForCalc = finalCapital ?? totalInvested
 
     let finalPct = isNaN(pctNum) ? 0 : pctNum
     let finalVal: number | undefined = isNaN(valNum) ? undefined : valNum
 
-    if (!isNaN(valNum) && totalInvested > 0 && isNaN(pctNum)) {
-      finalPct = ((valNum - totalInvested) / totalInvested) * 100
+    if (!isNaN(valNum) && baseForCalc > 0 && isNaN(pctNum)) {
+      finalPct = ((valNum - baseForCalc) / baseForCalc) * 100
     }
 
     nextMap[selectedYear] = {
       roiPct: Number(finalPct.toFixed(2)),
       currentValue: finalVal,
+      capitalBase: finalCapital,
     }
 
     saveRoiMap(nextMap)
@@ -157,8 +165,29 @@ export function InvestmentReturnCard({
             </div>
 
             <div className="mt-4 flex flex-col gap-4">
-              <div className="p-3 rounded-2xl bg-secondary/50 border border-border/40 text-xs text-muted-foreground">
-                <p><strong>Capital invertido en {selectedYear}:</strong> ${totalInvested.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
+              <div className="p-3 rounded-2xl bg-secondary/50 border border-border/40 text-xs text-muted-foreground flex flex-col gap-1">
+                <p><strong>Transacciones {selectedYear}:</strong> {totalInvested > 0 ? `$${totalInvested.toLocaleString("es-ES", { minimumFractionDigits: 2 })} invertidos` : "Sin transacciones registradas para este año"}</p>
+                {totalInvested === 0 && (
+                  <p className="text-amber-500/90">Puedes fijar el capital manualmente en el campo de abajo para calcular la rentabilidad.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Capital invertido total ({selectedYear})
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    step="100"
+                    placeholder={totalInvested > 0 ? totalInvested.toFixed(0) : "5000"}
+                    value={inputCapital}
+                    onChange={(e) => setInputCapital(e.target.value)}
+                    className="w-full rounded-2xl border border-border bg-background px-4 py-2.5 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
+                  />
+                  <span className="absolute right-4 text-xs font-bold text-muted-foreground">$</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Si lo dejas vacío, se usa el capital de las transacciones.</p>
               </div>
 
               <div>

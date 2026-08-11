@@ -22,6 +22,17 @@ const transactions = pgTable("transactions", {
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 })
 
+const stockPositions = pgTable("stock_positions", {
+  id: serial("id").primaryKey(),
+  userId: text("userId").notNull().default("local-user"),
+  symbol: text("symbol").notNull(),
+  label: text("label").notNull(),
+  shares: numeric("shares", { precision: 18, scale: 6 }),
+  avgPrice: numeric("avgPrice", { precision: 18, scale: 6 }),
+  avgFxRate: numeric("avgFxRate", { precision: 18, scale: 6 }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+})
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // Explicitly use verify-full to suppress pg SSL deprecation warning.
@@ -30,7 +41,7 @@ const pool = new Pool({
   max: 10,
   idleTimeoutMillis: 30000,
 })
-const db = drizzle(pool, { schema: { transactions } })
+const db = drizzle(pool, { schema: { transactions, stockPositions } })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server-side Intelligent Cache & Mutation Tracking
@@ -96,6 +107,15 @@ export type Summary = {
   selectedYear: number
   availableYears: number[]
   monthly: { key: string; label: string; net: number; income: number; expense: number }[]
+}
+
+export type StockPosition = {
+  id: number
+  symbol: string
+  label: string
+  shares: number | null
+  avgPrice: number | null
+  avgFxRate: number | null
 }
 
 export type ProfileStats = {
@@ -360,4 +380,69 @@ export async function getProfileStats(): Promise<ProfileStats> {
     topCategory,
     monthsActive,
   }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stock Positions — CRUD scoped to active user
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getStockPositions(): Promise<StockPosition[]> {
+  const activeUserId = await getActiveUserId()
+  const rows = await db
+    .select()
+    .from(stockPositions)
+    .where(eq(stockPositions.userId, activeUserId))
+    .orderBy(stockPositions.createdAt)
+  return rows.map((row) => ({
+    id: row.id,
+    symbol: row.symbol,
+    label: row.label,
+    shares: row.shares !== null ? Number(row.shares) : null,
+    avgPrice: row.avgPrice !== null ? Number(row.avgPrice) : null,
+    avgFxRate: row.avgFxRate !== null ? Number(row.avgFxRate) : null,
+  }))
+}
+
+export async function upsertStockPosition(data: {
+  symbol: string
+  label: string
+  shares?: number | null
+  avgPrice?: number | null
+  avgFxRate?: number | null
+}): Promise<void> {
+  const activeUserId = await getActiveUserId()
+  const existing = await db
+    .select({ id: stockPositions.id })
+    .from(stockPositions)
+    .where(and(eq(stockPositions.userId, activeUserId), eq(stockPositions.symbol, data.symbol)))
+
+  const sharesStr = data.shares != null ? String(data.shares) : null
+  const avgPriceStr = data.avgPrice != null ? String(data.avgPrice) : null
+  const avgFxRateStr = data.avgFxRate != null ? String(data.avgFxRate) : null
+
+  if (existing.length > 0) {
+    await db
+      .update(stockPositions)
+      .set({ label: data.label, shares: sharesStr, avgPrice: avgPriceStr, avgFxRate: avgFxRateStr })
+      .where(and(eq(stockPositions.userId, activeUserId), eq(stockPositions.symbol, data.symbol)))
+  } else {
+    await db.insert(stockPositions).values({
+      userId: activeUserId,
+      symbol: data.symbol,
+      label: data.label,
+      shares: sharesStr,
+      avgPrice: avgPriceStr,
+      avgFxRate: avgFxRateStr,
+    })
+  }
+  revalidatePath("/inversiones")
+}
+
+export async function deleteStockPosition(symbol: string): Promise<void> {
+  const activeUserId = await getActiveUserId()
+  await db
+    .delete(stockPositions)
+    .where(and(eq(stockPositions.userId, activeUserId), eq(stockPositions.symbol, symbol)))
+  revalidatePath("/inversiones")
 }

@@ -48,6 +48,20 @@ CREATE TABLE IF NOT EXISTS transactions (
   "occurredAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS stock_positions (
+  "id"        SERIAL PRIMARY KEY,
+  "userId"    TEXT NOT NULL DEFAULT 'local-user',
+  "symbol"    TEXT NOT NULL,
+  "label"     TEXT NOT NULL,
+  "shares"    NUMERIC(18, 6),
+  "avgPrice"  NUMERIC(18, 6),
+  "avgFxRate" NUMERIC(18, 6),
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE ("userId", "symbol")
+);
+
+ALTER TABLE stock_positions ADD COLUMN IF NOT EXISTS "avgFxRate" NUMERIC(18, 6);
 `
 
 ;(async () => {

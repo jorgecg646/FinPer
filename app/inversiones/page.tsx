@@ -1,14 +1,14 @@
-import { getSummary, getTransactions } from "@/app/actions"
+import { getSummary, getTransactions, getStockPositions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import {
-  InvestmentCategoryChart,
   InvestmentMonthlyBarChart,
   YearSelector,
 } from "@/components/finance/charts"
-import { InvestmentReturnCard } from "@/components/finance/investment-return"
+import { StockPricesPanel } from "@/components/finance/stock-prices"
 import { RecentTransactions } from "@/components/finance/transactions"
 import { isInvestmentTx } from "@/lib/finance"
 import { TrendingUp } from "lucide-react"
+
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +21,11 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
   const { year } = await searchParams
   const targetYear = year ? Number(year) : undefined
 
-  const [summary, transactions] = await Promise.all([getSummary(targetYear), getTransactions()])
+  const [summary, transactions, stockPositions] = await Promise.all([
+    getSummary(targetYear),
+    getTransactions(),
+    getStockPositions(),
+  ])
   const selectedYear = summary.selectedYear
 
   const investmentTransactions = transactions.filter((t) => {
@@ -53,12 +57,11 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
       </div>
 
       <div className="mt-8 flex flex-col gap-6">
-        {/* Interactive Annual ROI / Return Card */}
-        <InvestmentReturnCard selectedYear={selectedYear} totalInvested={totalInvested} />
+        {/* Real-time market prices & live portfolio summary */}
+        <StockPricesPanel initialPositions={stockPositions} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <InvestmentMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />
-          <InvestmentCategoryChart transactions={transactions} selectedYear={selectedYear} />
         </div>
 
         <RecentTransactions
@@ -68,6 +71,7 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
           defaultCategory="Inversiones"
         />
       </div>
+
     </LayoutShell>
   )
 }
