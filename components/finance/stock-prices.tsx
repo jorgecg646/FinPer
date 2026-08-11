@@ -681,29 +681,47 @@ function AddSymbolModal({
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState("")
 
-  // Debounced search — fires 350ms after the user stops typing
+  // Debounced search — fires 300ms after the user stops typing
   useEffect(() => {
     if (!query.trim()) {
       setResults([])
       setSearchError("")
+      setSearching(false)
       return
     }
+
+    const controller = new AbortController()
     setSearching(true)
     setSearchError("")
+    setResults([]) // Clear previous results immediately so old search results do not linger
+
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query.trim())}`)
+        const res = await fetch(
+          `/api/symbol-search?q=${encodeURIComponent(query.trim())}`,
+          { signal: controller.signal }
+        )
         const json = await res.json()
-        setResults(json.results ?? [])
-        if (json.error) setSearchError(json.error)
-      } catch {
-        setSearchError("Error al buscar")
-        setResults([])
+        if (!controller.signal.aborted) {
+          setResults(json.results ?? [])
+          if (json.error) setSearchError(json.error)
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          setSearchError("Error al buscar")
+          setResults([])
+        }
       } finally {
-        setSearching(false)
+        if (!controller.signal.aborted) {
+          setSearching(false)
+        }
       }
-    }, 350)
-    return () => clearTimeout(timer)
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
   }, [query])
 
   function buildEntry(sym: string, lbl: string) {
@@ -786,8 +804,23 @@ function AddSymbolModal({
             value={query}
             autoFocus
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-xl border border-border bg-background pl-8 pr-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-background pl-8 pr-8 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("")
+                setResults([])
+                setSearchError("")
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-full cursor-pointer"
+              title="Limpiar búsqueda"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Error */}
@@ -819,7 +852,13 @@ function AddSymbolModal({
           </>
         ) : (
           <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
-            {results.length === 0 && !searching && (
+            {searching && results.length === 0 && (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                <span>Buscando &ldquo;{query}&rdquo;…</span>
+              </div>
+            )}
+            {!searching && results.length === 0 && (
               <p className="text-center text-xs text-muted-foreground py-6">
                 Sin resultados para &ldquo;{query}&rdquo;
               </p>

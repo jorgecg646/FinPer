@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 export interface SymbolSearchResult {
   id: string
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       { results: mapped },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
         },
       }
     )
