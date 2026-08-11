@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 // Force Node.js runtime — @mathieuc/tradingview requires WebSockets (not available in Edge)
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 interface QuoteData {
   /** Last price */
@@ -62,40 +63,43 @@ export async function GET(req: NextRequest) {
       const market = new quote.Market(symbol)
 
       let resolved = false
+      const accumulated: QuoteData = {}
 
       market.onData((data: QuoteData) => {
+        Object.assign(accumulated, data)
+
         // Wait until we have a last price
-        if (!data.lp || resolved) return
+        if (!accumulated.lp || resolved) return
         resolved = true
         clearTimeout(timeout)
         try { market.close() } catch { /* ignore */ }
         try { quote.delete() } catch { /* ignore */ }
         try { client.end() } catch { /* ignore */ }
 
-        const rawData = data as Record<string, unknown>
+        const rawData = accumulated as Record<string, unknown>
         const perfYtd =
           typeof rawData["Perf.YTD"] === "number"
             ? rawData["Perf.YTD"]
             : typeof rawData["Perf.1Y"] === "number"
             ? rawData["Perf.1Y"]
-            : data.chp ?? 0
+            : accumulated.chp ?? 0
 
         resolve({
           symbol,
-          name: data.description ?? data.short_name ?? symbol,
-          price: data.lp ?? 0,
-          change: data.ch ?? 0,
-          changePercent: data.chp ?? 0,
+          name: accumulated.description ?? accumulated.short_name ?? symbol,
+          price: accumulated.lp ?? 0,
+          change: accumulated.ch ?? 0,
+          changePercent: accumulated.chp ?? 0,
           ytdChangePercent: perfYtd,
-          high: data.high_price ?? 0,
-          low: data.low_price ?? 0,
-          open: data.open_price ?? 0,
-          prevClose: data.prev_close_price ?? 0,
-          volume: data.volume ?? 0,
-          currency: data.currency_code ?? "USD",
-          exchange: data.exchange ?? "",
+          high: accumulated.high_price ?? 0,
+          low: accumulated.low_price ?? 0,
+          open: accumulated.open_price ?? 0,
+          prevClose: accumulated.prev_close_price ?? 0,
+          volume: accumulated.volume ?? 0,
+          currency: accumulated.currency_code ?? "USD",
+          exchange: accumulated.exchange ?? "",
           timestamp: Date.now(),
-          logoid: data.logoid ?? "",
+          logoid: accumulated.logoid ?? "",
         })
       })
 
@@ -137,7 +141,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(finalResult, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
       },
     })
   } catch (err) {

@@ -376,6 +376,11 @@ function TickerCard({
   const [rotating, setRotating] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
+  // Reset logo error when position symbol changes
+  useEffect(() => {
+    setLogoError(false)
+  }, [position.symbol])
+
   const load = useCallback(async () => {
     setState({ status: "loading" })
     setRotating(true)
@@ -406,6 +411,10 @@ function TickerCard({
     position.avgPrice > 0
 
   const isPositive = state.status === "ok" ? state.data.changePercent >= 0 : null
+  const displayName =
+    state.status === "ok" && state.data.name && !state.data.name.includes(":")
+      ? state.data.name
+      : position.label || position.symbol
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-secondary/30 p-4 transition-all hover:border-primary/30 hover:bg-secondary/50">
@@ -416,7 +425,7 @@ function TickerCard({
           {state.status === "ok" && state.data.logoid && !logoError ? (
             <img
               src={`https://s3-symbol-logo.tradingview.com/${state.data.logoid}--big.svg`}
-              alt=""
+              alt={displayName}
               className="h-9 w-9 shrink-0 rounded-xl object-contain bg-secondary/60 p-1"
               onError={() => setLogoError(true)}
             />
@@ -441,7 +450,7 @@ function TickerCard({
           )}
           <div className="min-w-0">
             <p className="text-sm font-bold text-foreground truncate">
-              {state.status === "ok" ? state.data.name : position.label}
+              {displayName}
             </p>
             <p className="text-[10px] text-muted-foreground font-mono truncate">
               {position.symbol}
