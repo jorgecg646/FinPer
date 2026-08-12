@@ -255,7 +255,7 @@ export function LayoutShell({ balance, children }: { balance: number; children: 
 
   return (
     <NetlifyAuthProvider>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background" suppressHydrationWarning>
         {/* Desktop sidebar */}
         <div className="sticky top-0 hidden h-screen lg:block">
           <Sidebar balance={balance} />
