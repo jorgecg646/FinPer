@@ -4,13 +4,9 @@ import { useState, useEffect } from "react"
 import { DollarSign, Download, Loader2 } from "lucide-react"
 import type { Summary, Tx } from "@/app/actions"
 
-export type Currency = "EUR" | "USD" | "GBP"
+import { CURRENCY_SYMBOLS } from "@/lib/format"
 
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  EUR: "€",
-  USD: "$",
-  GBP: "£",
-}
+export type Currency = "EUR" | "USD" | "GBP"
 
 const CURRENCY_KEY = "finflow-currency"
 

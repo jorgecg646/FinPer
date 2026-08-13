@@ -13,28 +13,14 @@ const PALETTE = [
 
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
-  const rad = ((deg - 90) * Math.PI) / 180
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
-}
-
-function arcPath(cx: number, cy: number, r: number, start: number, end: number) {
-  const s = polarToCartesian(cx, cy, r, start)
-  const e = polarToCartesian(cx, cy, r, end)
-  return `M ${cx} ${cy} L ${s.x} ${s.y} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${e.x} ${e.y} Z`
-}
+import { polarToCartesian, arcPath } from "@/lib/format"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
 function getYearMonthsData(transactions: Tx[], selectedYear: number) {
   const data: { label: string; income: number; expense: number; net: number }[] = []
-
   for (let m = 0; m < 12; m++) {
     let inc = 0
     let exp = 0
-
     for (const t of transactions) {
       const td = new Date(t.occurredAt)
       if (td.getFullYear() === selectedYear && td.getMonth() === m) {
@@ -42,19 +28,10 @@ function getYearMonthsData(transactions: Tx[], selectedYear: number) {
         else exp += t.amount
       }
     }
-
-    data.push({
-      label: MONTH_LABELS[m],
-      income: inc,
-      expense: exp,
-      net: inc - exp
-    })
+    data.push({ label: MONTH_LABELS[m], income: inc, expense: exp, net: inc - exp })
   }
-
   return data
 }
-
-import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YearSelector — Control component for filtering charts by year

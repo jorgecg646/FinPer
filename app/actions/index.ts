@@ -33,11 +33,18 @@ const stockPositions = pgTable("stock_positions", {
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 })
 
+function getConnectionString(): string | undefined {
+  let connStr = process.env.DATABASE_URL
+  if (!connStr) return undefined
+  if (connStr.includes("sslmode=require") || connStr.includes("sslmode=prefer")) {
+    connStr = connStr.replace(/sslmode=(require|prefer)/g, "sslmode=verify-full")
+  }
+  return connStr
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Explicitly use verify-full to suppress pg SSL deprecation warning.
-  // This is the current behavior and the recommended secure setting.
-  ssl: { rejectUnauthorized: true },
+  connectionString: getConnectionString(),
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: true } : false,
   max: 10,
   idleTimeoutMillis: 30000,
 })
