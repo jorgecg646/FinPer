@@ -16,6 +16,7 @@ function cleanNewsTitle(title: string): string {
   return title
     .replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")
     .replace(/<[^>]*>/g, "")
+    .replace(/\s*\([a-zA-Z0-9_-]{8,15}\)\s*$/g, "")
     .replace(/ - [^-]+$/, "") // remove trailing source name
     .replace(/^De cara a hoy:\s*/i, "")
     .replace(/^a hoy:\s*/i, "")
@@ -72,14 +73,15 @@ function isFinancialTitle(title: string): boolean {
     if (lower.includes(word)) return false
   }
 
-  // Must contain at least one economic/financial indicator
+  // Must contain at least one economic/financial indicator or market voice
   const financialKeywords = [
     "bolsa", "acciones", "mercado", "cotización", "cotizacion", "precio", "dólar", "dolar",
     "euro", "yen", "yuan", "ipc", "cpi", "inflación", "inflacion", "pib", "fed", "bce",
     "tipos", "interés", "interes", "oro", "gold", "petróleo", "petroleo", "crudo", "wall street",
     "nasdaq", "s&p", "ibex", "dax", "nikkei", "hang seng", "inversión", "inversion", "inversores",
     "banca", "banco", "empresa", "resultados", "beneficio", "ingresos", "arancel", "deuda",
-    "bonos", "cripto", "bitcoin", "ethereum", "tecnológicas", "tecnologicas", "ia", "semiconductores"
+    "bonos", "cripto", "bitcoin", "ethereum", "tecnológicas", "tecnologicas", "ia", "semiconductores",
+    "dalio", "dimon", "zitron", "buffett", "burry", "cathie wood", "jpmorgan", "bridgewater"
   ]
 
   return financialKeywords.some((kw) => lower.includes(kw))
@@ -89,15 +91,18 @@ export async function GET() {
   try {
     const now = Date.now()
 
-    // Strictly financial live RSS queries for Europa, Asia, USA, Gold, Commodities, Crypto (last 12 hours)
+    // Strictly financial live RSS queries for Europa, Asia, USA, Gold, Commodities, Crypto, Market Voices
     const europeQuery = encodeURIComponent("Bolsa Europa OR Ibex 35 OR BCE Eurozona OR Dax Alemania when:12h")
     const asiaQuery = encodeURIComponent("Bolsa Nikkei OR Bolsa China OR economia Japon OR mercado Yen OR acciones Asia when:12h")
     const usaQuery = encodeURIComponent("Wall Street OR Nasdaq OR SP500 OR Fed inflacion when:12h")
     const goldQuery = encodeURIComponent("precio Oro OR cotizacion Oro Gold XAUUSD when:12h")
     const commoditiesQuery = encodeURIComponent("cotizacion Plata OR Petroleo Brent OR Gas Natural OR precio Cobre OR Litio when:12h")
     const cryptoQuery = encodeURIComponent("cotizacion Bitcoin OR cotizacion Cripto OR Ethereum when:12h")
+    const voicesEsQuery = encodeURIComponent('"Ray Dalio" OR "Jamie Dimon" OR "Warren Buffett" OR "Michael Burry" OR "Ed Zitron" OR "Cathie Wood" when:24h')
+    const voicesEnQuery = encodeURIComponent('"Ray Dalio" OR "Jamie Dimon" OR "Warren Buffett" OR "Michael Burry" OR "Cathie Wood" when:24h')
+    const zitronQuery = encodeURIComponent('"Ed Zitron" OR "Where\'s Your Ed At"')
 
-    const [resEurope, resAsia, resUsa, resGold, resCommodities, resCrypto] = await Promise.all([
+    const [resEurope, resAsia, resUsa, resGold, resCommodities, resCrypto, resVoicesEs, resVoicesEn, resZitron] = await Promise.all([
       fetch(`https://news.google.com/rss/search?q=${europeQuery}&hl=es&gl=ES&ceid=ES:es`, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
         cache: "no-store",
@@ -122,11 +127,23 @@ export async function GET() {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
         cache: "no-store",
       }).catch(() => null),
+      fetch(`https://news.google.com/rss/search?q=${voicesEsQuery}&hl=es&gl=ES&ceid=ES:es`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        cache: "no-store",
+      }).catch(() => null),
+      fetch(`https://news.google.com/rss/search?q=${voicesEnQuery}&hl=en-US&gl=US&ceid=US:en`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        cache: "no-store",
+      }).catch(() => null),
+      fetch(`https://news.google.com/rss/search?q=${zitronQuery}&hl=en-US&gl=US&ceid=US:en`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        cache: "no-store",
+      }).catch(() => null),
     ])
 
     const fetchedItems: NewsItem[] = []
 
-    function parseXmlFeed(xmlText: string, defaultCategory: NewsItem["category"] = "MERCADOS") {
+    function parseXmlFeed(xmlText: string, defaultCategory: NewsItem["category"] = "MERCADOS", maxHours = 36) {
       const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>/g
       let match: RegExpExecArray | null
 
@@ -136,7 +153,7 @@ export async function GET() {
         const link = match[2].trim()
         const pubDateStr = match[3] ? match[3].trim() : ""
 
-        let timeAgo = "últimas 12h"
+        let timeAgo = "reciente"
         let pubTime = now
         if (pubDateStr) {
           const parsedTime = new Date(pubDateStr).getTime()
@@ -145,8 +162,8 @@ export async function GET() {
             const diffMs = now - pubTime
             const hoursDiff = diffMs / (1000 * 60 * 60)
 
-            if (hoursDiff > 12 || hoursDiff < -2) {
-              continue // Discard anything older than 12 hours
+            if (hoursDiff > maxHours || hoursDiff < -2) {
+              continue // Discard anything older than maxHours
             }
 
             const pubDateObj = new Date(pubTime)
@@ -229,7 +246,15 @@ export async function GET() {
           lower.includes("s&p") ||
           lower.includes("nasdaq") ||
           lower.includes("fed") ||
-          lower.includes("dólar")
+          lower.includes("dólar") ||
+          lower.includes("dalio") ||
+          lower.includes("dimon") ||
+          lower.includes("zitron") ||
+          lower.includes("buffett") ||
+          lower.includes("burry") ||
+          lower.includes("cathie wood") ||
+          lower.includes("jpmorgan") ||
+          lower.includes("bridgewater")
         ) {
           category = "🇺🇸 USA"
         } else if (
@@ -289,36 +314,30 @@ export async function GET() {
       parseXmlFeed(xmlCrypto, "🪙 CRIPTO")
     }
 
+    if (resVoicesEs && resVoicesEs.ok) {
+      const xmlVoicesEs = await resVoicesEs.text()
+      parseXmlFeed(xmlVoicesEs, "🇺🇸 USA")
+    }
+
+    if (resVoicesEn && resVoicesEn.ok) {
+      const xmlVoicesEn = await resVoicesEn.text()
+      parseXmlFeed(xmlVoicesEn, "🇺🇸 USA")
+    }
+
+    if (resZitron && resZitron.ok) {
+      const xmlZitron = await resZitron.text()
+      parseXmlFeed(xmlZitron, "🇺🇸 USA", 48)
+    }
+
     // Deduplicate items by title
     const uniqueNews = fetchedItems.filter(
       (item, index, self) => index === self.findIndex((t) => t.title === item.title)
     )
 
-    // Group items by category and interleave so ASIA, EUROPA, USA appear right away
-    const byCategory: Record<string, NewsItem[]> = {}
-    for (const item of uniqueNews) {
-      const cat = item.category
-      if (!byCategory[cat]) byCategory[cat] = []
-      byCategory[cat].push(item)
-    }
+    // Sort items strictly chronologically (newest first)
+    uniqueNews.sort((a, b) => b.pubTime - a.pubTime)
 
-    for (const cat in byCategory) {
-      byCategory[cat].sort((a, b) => b.pubTime - a.pubTime)
-    }
-
-    const interleaved: NewsItem[] = []
-    const categories = Object.keys(byCategory)
-    const maxLen = categories.length > 0 ? Math.max(...categories.map((c) => byCategory[c].length)) : 0
-
-    for (let i = 0; i < maxLen; i++) {
-      for (const cat of categories) {
-        if (byCategory[cat][i]) {
-          interleaved.push(byCategory[cat][i])
-        }
-      }
-    }
-
-    return NextResponse.json({ news: interleaved })
+    return NextResponse.json({ news: uniqueNews })
   } catch {
     return NextResponse.json({ news: [] })
   }
