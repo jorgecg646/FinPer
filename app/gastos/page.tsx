@@ -5,7 +5,6 @@ import {
   ExpenseMonthlyBarChart,
   ExpenseCategoryProgressChart,
   YearOverYearComparisonChart,
-  MicroExpensesChart,
   YearSelector,
 } from "@/components/finance/charts"
 import { RecentTransactions } from "@/components/finance/transactions"
@@ -63,7 +62,6 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
         {/* 3rd Section: Restantes gráficas */}
         <ExpenseCategoryProgressChart transactions={expenseTransactions} />
         <YearOverYearComparisonChart transactions={transactions} selectedYear={selectedYear} />
-        <MicroExpensesChart transactions={expenseTransactions} />
       </div>
     </LayoutShell>
   )

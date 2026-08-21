@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, CreditCard, Sun, Moon, TrendingUp } from "lucide-react"
+import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, Calculator, Sun, Moon, TrendingUp } from "lucide-react"
 import { loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
 import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
@@ -13,13 +13,13 @@ import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { id: "home",          label: "Inicio",        icon: Home,            href: "/" },
-  { id: "income",        label: "Ingresos",      icon: ArrowUpCircle,   href: "/ingresos" },
-  { id: "expenses",      label: "Gastos",        icon: ArrowDownCircle, href: "/gastos" },
-  { id: "investments",   label: "Inversiones",   icon: TrendingUp,      href: "/inversiones" },
-  { id: "budgets",       label: "Presupuestos",  icon: Target,          href: "/presupuestos" },
-  { id: "subscriptions", label: "Suscripciones", icon: CreditCard,      href: "/suscripciones" },
-  { id: "profile",       label: "Perfil",        icon: User,            href: "/perfil" },
+  { id: "home",        label: "Inicio",        shortLabel: "Inicio",   icon: Home,            href: "/" },
+  { id: "income",      label: "Ingresos",      shortLabel: "Ingresos", icon: ArrowUpCircle,   href: "/ingresos" },
+  { id: "expenses",    label: "Gastos",        shortLabel: "Gastos",   icon: ArrowDownCircle, href: "/gastos" },
+  { id: "investments", label: "Inversiones",   shortLabel: "Invertir", icon: TrendingUp,      href: "/inversiones" },
+  { id: "budgets",     label: "Presupuestos",  shortLabel: "Metas",    icon: Target,          href: "/presupuestos" },
+  { id: "calculators", label: "Calculadoras",  shortLabel: "Simular",  icon: Calculator,      href: "/calculadoras" },
+  { id: "profile",     label: "Perfil",        shortLabel: "Perfil",   icon: User,            href: "/perfil" },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,14 +231,25 @@ export function MobileNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-30 flex border-t border-border bg-card lg:hidden" aria-label="Navegación móvil">
-      {NAV_ITEMS.map(({ id, label, icon: Icon, href }) => {
+    <nav className="fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-border/80 bg-card/95 backdrop-blur-lg px-1 py-1.5 shadow-lg lg:hidden" aria-label="Navegación móvil">
+      {NAV_ITEMS.map(({ id, shortLabel, label, icon: Icon, href }) => {
         const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
         return (
-          <Link key={id} href={href} aria-current={isActive ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center gap-1 py-2 text-[9px] font-semibold transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-            <Icon className={`h-4.5 w-4.5 transition-transform ${isActive ? "scale-110" : ""}`} aria-hidden="true" />
-            {label}
+          <Link
+            key={id}
+            href={href}
+            aria-current={isActive ? "page" : undefined}
+            title={label}
+            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-xl transition-all ${
+              isActive
+                ? "text-primary font-black scale-105"
+                : "text-muted-foreground hover:text-foreground font-semibold"
+            }`}
+          >
+            <Icon className={`h-4.5 w-4.5 shrink-0 transition-transform ${isActive ? "text-primary stroke-[2.5]" : "stroke-2"}`} aria-hidden="true" />
+            <span className="text-[9px] leading-none tracking-tight truncate max-w-full text-center">
+              {shortLabel || label}
+            </span>
           </Link>
         )
       })}

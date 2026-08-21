@@ -30,10 +30,17 @@ export function CurrencySelector() {
 
   return (
     <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 shadow-xs">
-      <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+      <label htmlFor="currency-selector-input" className="sr-only">
+        Seleccionar moneda
+      </label>
+      <DollarSign className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
       <select
+        id="currency-selector-input"
+        name="currency-selector-input"
         value={currency}
         onChange={(e) => handleCurrencyChange(e.target.value as Currency)}
+        aria-label="Seleccionar moneda"
+        title="Seleccionar moneda"
         className="appearance-none bg-transparent text-xs font-bold text-foreground outline-none cursor-pointer pr-1"
       >
         <option value="EUR" className="bg-card text-foreground dark:bg-zinc-900 dark:text-zinc-100 font-semibold">EUR (€)</option>

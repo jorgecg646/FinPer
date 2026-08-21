@@ -220,6 +220,7 @@ function TxRow({
           <select
             value={tx.category}
             onChange={(e) => onChange({ category: e.target.value })}
+            aria-label="Categoría"
             className="w-36 appearance-none rounded-lg border border-border bg-background px-2 py-1 pr-6 text-xs outline-none focus:ring-1 focus:ring-ring"
           >
             {!cats.some((c) => c === tx.category) && <option value={tx.category}>{tx.category}</option>}

@@ -685,6 +685,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
             <span>Mostrar:</span>
             <select
               id="tx-items-per-page"
+              aria-label="Elementos por página"
               value={itemsPerPage}
               onChange={(e) => {
                 const val = e.target.value

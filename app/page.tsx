@@ -9,7 +9,7 @@ import {
   MoneyFlowSankeyChart,
   YearSelector,
 } from "@/components/finance/charts"
-
+import { AnnualWrappedBanner } from "@/components/finance/annual-wrapped"
 import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
 
 export const dynamic = "force-dynamic"
@@ -32,8 +32,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ y
         </div>
       </div>
 
+      {/* Annual Wrapped Banner Highlight */}
+      <div className="mt-6">
+        <AnnualWrappedBanner summary={summary} transactions={transactions} />
+      </div>
+
       {/* Main Grid */}
-      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left/Main Column */}
         <div className="flex flex-col gap-6 xl:col-span-2">
           <BalanceCard balance={summary.balance} monthly={summary.monthly} year={selectedYear} />

@@ -87,9 +87,16 @@ function isFinancialTitle(title: string): boolean {
   return financialKeywords.some((kw) => lower.includes(kw))
 }
 
+let cachedNewsData: { timestamp: number; news: NewsItem[] } | null = null
+const NEWS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 export async function GET() {
   try {
     const now = Date.now()
+
+    if (cachedNewsData && now - cachedNewsData.timestamp < NEWS_CACHE_TTL && cachedNewsData.news.length > 0) {
+      return NextResponse.json({ news: cachedNewsData.news })
+    }
 
     // Strictly financial live RSS queries for Europa, Asia, USA, Gold, Commodities, Crypto, Market Voices
     const europeQuery = encodeURIComponent("Bolsa Europa OR Ibex 35 OR BCE Eurozona OR Dax Alemania when:12h")
@@ -337,8 +344,15 @@ export async function GET() {
     // Sort items strictly chronologically (newest first)
     uniqueNews.sort((a, b) => b.pubTime - a.pubTime)
 
+    if (uniqueNews.length > 0) {
+      cachedNewsData = { timestamp: now, news: uniqueNews }
+    }
+
     return NextResponse.json({ news: uniqueNews })
   } catch {
+    if (cachedNewsData && cachedNewsData.news.length > 0) {
+      return NextResponse.json({ news: cachedNewsData.news })
+    }
     return NextResponse.json({ news: [] })
   }
 }

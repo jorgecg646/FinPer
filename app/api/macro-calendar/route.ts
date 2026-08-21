@@ -56,9 +56,17 @@ function variantRank(title: string): number {
   return 2
 }
 
+let cachedCalendarData: { timestamp: number; events: LiveMacroEvent[] } | null = null
+const CALENDAR_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 export async function GET() {
   try {
     const now = new Date()
+    const nowMs = now.getTime()
+
+    if (cachedCalendarData && nowMs - cachedCalendarData.timestamp < CALENDAR_CACHE_TTL && cachedCalendarData.events.length > 0) {
+      return NextResponse.json({ events: cachedCalendarData.events })
+    }
     const from = new Date(now)
     from.setDate(from.getDate() - 1)
     const to = new Date(now)
@@ -182,10 +190,15 @@ export async function GET() {
         const key = `${evt.title}|${evt.dateStr}`
         return arr.findIndex((item) => `${item.title}|${item.dateStr}` === key) === idx
       })
-      .slice(0, 9)
+    if (deduplicated.length > 0) {
+      cachedCalendarData = { timestamp: nowMs, events: deduplicated }
+    }
 
     return NextResponse.json({ events: deduplicated })
   } catch {
+    if (cachedCalendarData && cachedCalendarData.events.length > 0) {
+      return NextResponse.json({ events: cachedCalendarData.events })
+    }
     const now = new Date()
     const tz = now.getMonth() >= 3 && now.getMonth() <= 9 ? "CEST" : "CET"
     const fallback: LiveMacroEvent[] = [

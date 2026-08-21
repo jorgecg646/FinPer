@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import type { Summary, Tx } from "@/app/actions"
 import { isInvestmentTx } from "@/lib/finance"
 import { Calendar, ChevronDown } from "lucide-react"
@@ -59,9 +59,14 @@ export function YearSelector({
       <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
       <span className="text-xs font-medium text-muted-foreground">Año</span>
       <div className="relative inline-flex items-center justify-center">
+        <label htmlFor="year-selector-select" className="sr-only">Seleccionar año</label>
         <select
+          id="year-selector-select"
+          name="year-selector-select"
           value={selectedYear}
           onChange={(e) => handleYearChange(Number(e.target.value))}
+          aria-label="Seleccionar año"
+          title="Seleccionar año"
           className="cursor-pointer appearance-none bg-transparent pr-5 text-xs font-bold text-foreground outline-none text-center leading-none"
         >
           {availableYears.map((y) => (
@@ -101,7 +106,8 @@ export function IncomeChart({ monthly, year }: { monthly: Summary["monthly"]; ye
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img" aria-label="Gráfico de ingresos mensuales" aria-labelledby="income-chart-title">
+              <title id="income-chart-title">Gráfico de ingresos mensuales</title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
@@ -197,7 +203,8 @@ export function IncomeCategoryChart({ transactions }: { transactions: Tx[] }) {
 
       <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative shrink-0 flex justify-center items-center">
-          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de distribución por fuente de ingreso" aria-labelledby="income-sources-chart-title">
+            <title id="income-sources-chart-title">Distribución por fuente de ingreso</title>
             {slices.map((s) => {
               const isActive = activeCategory === s.cat
               return (
@@ -296,7 +303,8 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
 
       <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative shrink-0 flex justify-center items-center">
-          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de gastos por categoría" aria-labelledby="expense-categories-chart-title">
+            <title id="expense-categories-chart-title">Gastos por categoría</title>
             {slices.map((s) => {
               const isActive = activeCategory === s.cat
               return (
@@ -392,7 +400,8 @@ export function ExpenseMonthlyBarChart({ transactions, selectedYear }: { transac
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img" aria-label="Gráfico de barras de gastos por mes" aria-labelledby="monthly-expense-bar-title">
+              <title id="monthly-expense-bar-title">Gastos por mes</title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
@@ -474,7 +483,8 @@ export function MonthlyComparisonChart({ transactions, selectedYear }: { transac
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img" aria-label="Gráfico comparativo de ingresos versus gastos" aria-labelledby="monthly-comp-chart-title">
+              <title id="monthly-comp-chart-title">Comparativa de ingresos versus gastos</title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
@@ -570,7 +580,8 @@ export function NetSavingsTrendChart({ transactions, selectedYear }: { transacti
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 160" className="h-full w-full overflow-visible" role="img">
+            <svg viewBox="0 0 600 160" className="h-full w-full overflow-visible" role="img" aria-label="Gráfico de tendencia de ahorro neto mensual" aria-labelledby="net-savings-chart-title">
+              <title id="net-savings-chart-title">Tendencia de ahorro neto mensual</title>
               <line x1="25" y1="70" x2="575" y2="70" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1.5" />
               <path d={areaD} fill="var(--primary)" opacity="0.18" />
               <path d={pathD} fill="none" stroke="var(--positive)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -888,7 +899,8 @@ export function MoneyFlowSankeyChart({ transactions }: { transactions: Tx[] }) {
 
       <div className="mt-4 w-full overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-full min-w-[650px]">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-full" preserveAspectRatio="xMidYMid meet" role="img">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Diagrama de flujo de dinero" aria-labelledby="sankey-money-flow-title">
+            <title id="sankey-money-flow-title">Diagrama de flujo de dinero</title>
             {[...leftRibbons, ...rightRibbons].map((r) => {
               const isHovered = hoveredFlow === r.id
               return (
@@ -945,38 +957,113 @@ export function MoneyFlowSankeyChart({ transactions }: { transactions: Tx[] }) {
 // 11. YearOverYearComparisonChart — Year vs Previous Year Comparison
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function YearOverYearComparisonChart({ transactions, selectedYear }: { transactions: Tx[]; selectedYear: number }) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const prevYear = selectedYear - 1
+export function YearOverYearComparisonChart({
+  transactions,
+  selectedYear = new Date().getFullYear(),
+}: {
+  transactions: Tx[]
+  selectedYear?: number
+}) {
+  const currentYear = new Date().getFullYear()
 
-  const currentYearData = getYearMonthsData(transactions, selectedYear)
-  const prevYearData = getYearMonthsData(transactions, prevYear)
+  // Calculate all unique years with data + current and prior years
+  const availableYears: number[] = useMemo(() => {
+    const set = new Set<number>([currentYear, currentYear - 1, selectedYear])
+    for (const t of transactions) {
+      const y = new Date(t.occurredAt).getFullYear()
+      if (!isNaN(y)) set.add(y)
+    }
+    return Array.from(set).sort((a, b) => b - a)
+  }, [transactions, currentYear, selectedYear])
+
+  const [yearA, setYearA] = useState<number>(selectedYear)
+  const [yearB, setYearB] = useState<number>(() => {
+    const prior = availableYears.find((y: number) => y < selectedYear)
+    return prior !== undefined ? prior : selectedYear - 1
+  })
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
+  // Sync yearA when selectedYear prop changes from outer page
+  useEffect(() => {
+    setYearA(selectedYear)
+    const prior = availableYears.find((y: number) => y < selectedYear)
+    if (prior !== undefined) setYearB(prior)
+    else setYearB(selectedYear - 1)
+  }, [selectedYear, availableYears])
+
+  const yearAData = getYearMonthsData(transactions, yearA)
+  const yearBData = getYearMonthsData(transactions, yearB)
 
   const maxExpense = Math.max(
     1,
-    ...currentYearData.map((m) => m.expense),
-    ...prevYearData.map((m) => m.expense)
+    ...yearAData.map((m) => m.expense),
+    ...yearBData.map((m) => m.expense)
   )
 
-  const totalCurrent = currentYearData.reduce((s, m) => s + m.expense, 0)
-  const totalPrev = prevYearData.reduce((s, m) => s + m.expense, 0)
-  const diffPct = totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : 0
+  const totalA = yearAData.reduce((s, m) => s + m.expense, 0)
+  const totalB = yearBData.reduce((s, m) => s + m.expense, 0)
+  const diffPct = totalB > 0 ? ((totalA - totalB) / totalB) * 100 : 0
 
   return (
     <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold text-foreground sm:text-base">Comparativa Interanual ({selectedYear} vs {prevYear})</h2>
-          <p className="text-xs text-muted-foreground">Evolución del gasto mensual respecto al año anterior</p>
+          <h2 className="text-sm font-bold text-foreground sm:text-base">
+            Comparativa Interanual ({yearA} vs {yearB})
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Evolución del gasto mensual comparando dos ejercicios seleccionables
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-xs font-semibold self-start sm:self-auto bg-secondary px-3 py-1 rounded-full">
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-            <span>{selectedYear}</span>
+
+        {/* Dynamic Year Selectors */}
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* Year A (Base) */}
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-xs">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" aria-hidden="true" />
+            <label htmlFor="yoy-year-a-select" className="sr-only">
+              Año principal
+            </label>
+            <select
+              id="yoy-year-a-select"
+              name="yoy-year-a-select"
+              value={yearA}
+              onChange={(e) => setYearA(Number(e.target.value))}
+              aria-label="Seleccionar año base principal"
+              title="Año base principal"
+              className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer text-xs"
+            >
+              {availableYears.map((y: number) => (
+                <option key={`a-${y}`} value={y} className="bg-card text-foreground">
+                  {y}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
-            <span>{prevYear}</span>
+
+          <span className="text-xs font-black text-muted-foreground">vs</span>
+
+          {/* Year B (Comparison) */}
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-xs">
+            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/60 shrink-0" aria-hidden="true" />
+            <label htmlFor="yoy-year-b-select" className="sr-only">
+              Año a comparar
+            </label>
+            <select
+              id="yoy-year-b-select"
+              name="yoy-year-b-select"
+              value={yearB}
+              onChange={(e) => setYearB(Number(e.target.value))}
+              aria-label="Seleccionar año para comparar"
+              title="Año para comparar"
+              className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer text-xs"
+            >
+              {availableYears.map((y: number) => (
+                <option key={`b-${y}`} value={y} className="bg-card text-foreground">
+                  {y}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -984,14 +1071,23 @@ export function YearOverYearComparisonChart({ transactions, selectedYear }: { tr
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+            <svg
+              viewBox="0 0 600 170"
+              className="h-full w-full overflow-visible"
+              role="img"
+              aria-label={`Gráfico comparativo interanual de ${yearA} frente a ${yearB}`}
+              aria-labelledby="yoy-comp-chart-title"
+            >
+              <title id="yoy-comp-chart-title">
+                Comparativa interanual {yearA} vs {yearB}
+              </title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
 
-              {currentYearData.map((mCurr, i) => {
-                const mPrev = prevYearData[i] || { expense: 0 }
-                const groupW = 600 / currentYearData.length
+              {yearAData.map((mCurr, i) => {
+                const mPrev = yearBData[i] || { expense: 0 }
+                const groupW = 600 / yearAData.length
                 const barW = 9
                 const xCurr = i * groupW + (groupW - (barW * 2 + 2)) / 2
                 const xPrev = xCurr + barW + 2
@@ -1031,14 +1127,28 @@ export function YearOverYearComparisonChart({ transactions, selectedYear }: { tr
       <div className="mt-2 min-h-[22px] flex items-center justify-between text-xs pt-1 border-t border-border/40">
         {hoveredIdx !== null ? (
           <div className="flex items-center gap-3 bg-secondary/80 px-3 py-1 rounded-full font-medium w-full justify-center">
-            <span className="font-bold text-foreground">{currentYearData[hoveredIdx].label}:</span>
-            <span className="text-foreground">{selectedYear}: ${currentYearData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
-            <span className="text-muted-foreground">{prevYear}: ${prevYearData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
+            <span className="font-bold text-foreground">{yearAData[hoveredIdx].label}:</span>
+            <span className="text-foreground">
+              {yearA}: ${yearAData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-muted-foreground">
+              {yearB}: ${yearBData[hoveredIdx].expense.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+            </span>
           </div>
         ) : (
-          <div className="flex items-center justify-between w-full text-muted-foreground text-[11px]">
-            <span>Total {selectedYear}: <strong className="text-foreground">${totalCurrent.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</strong></span>
-            <span>Variación: <strong className={diffPct <= 0 ? "text-positive" : "text-destructive"}>{diffPct <= 0 ? "" : "+"}{diffPct.toFixed(1)}% vs {prevYear}</strong></span>
+          <div className="flex items-center justify-between w-full text-muted-foreground text-[11px] flex-wrap gap-2">
+            <span>
+              Total {yearA}: <strong className="text-foreground">${totalA.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</strong>
+              {" · "}
+              Total {yearB}: <strong className="text-foreground">${totalB.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</strong>
+            </span>
+            <span>
+              Variación:{" "}
+              <strong className={diffPct <= 0 ? "text-positive" : "text-destructive"}>
+                {diffPct <= 0 ? "" : "+"}
+                {diffPct.toFixed(1)}% vs {yearB}
+              </strong>
+            </span>
           </div>
         )}
       </div>
@@ -1047,78 +1157,8 @@ export function YearOverYearComparisonChart({ transactions, selectedYear }: { tr
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12. MicroExpensesChart — Analysis of Micro-Expenses (<= 10€)
+// 12. InvestmentCategoryChart — Donut Chart for Investment Allocation
 // ─────────────────────────────────────────────────────────────────────────────
-
-export function MicroExpensesChart({ transactions }: { transactions: Tx[] }) {
-  const microTxs = transactions.filter((t) => t.type === "expense" && t.amount <= 10)
-  const totalExpenseTxs = transactions.filter((t) => t.type === "expense")
-
-  const totalMicroAmount = microTxs.reduce((s, t) => s + t.amount, 0)
-  const totalAllExpenseAmount = totalExpenseTxs.reduce((s, t) => s + t.amount, 0)
-  const microPct = totalAllExpenseAmount > 0 ? (totalMicroAmount / totalAllExpenseAmount) * 100 : 0
-  const avgMicroTicket = microTxs.length > 0 ? totalMicroAmount / microTxs.length : 0
-
-  const catMap = new Map<string, number>()
-  for (const t of microTxs) {
-    catMap.set(t.category, (catMap.get(t.category) ?? 0) + t.amount)
-  }
-  const topCategories = [...catMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  return (
-    <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-bold text-foreground sm:text-base">Análisis de "Gastos Hormiga" (≤ 10€)</h2>
-          <p className="text-xs text-muted-foreground">Fuga de capital en pequeñas compras cotidianas</p>
-        </div>
-        <div className="self-start sm:self-auto rounded-full bg-amber-500/10 text-amber-500 px-3 py-1 text-xs font-bold">
-          {microTxs.length} micro-compras
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
-          <p className="text-[10px] text-muted-foreground font-semibold">Total Gastos Hormiga</p>
-          <p className="text-base font-bold text-destructive mt-0.5">${totalMicroAmount.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
-        </div>
-        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
-          <p className="text-[10px] text-muted-foreground font-semibold">% del Gasto Total</p>
-          <p className="text-base font-bold text-foreground mt-0.5">{microPct.toFixed(1)}%</p>
-        </div>
-        <div className="p-3 rounded-2xl bg-secondary/50 border border-border/50 text-center">
-          <p className="text-[10px] text-muted-foreground font-semibold">Ticket Medio Hormiga</p>
-          <p className="text-base font-bold text-foreground mt-0.5">${avgMicroTicket.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</p>
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <h3 className="text-xs font-bold text-foreground mb-2">Categorías con más Gastos Hormiga</h3>
-        {topCategories.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No se registran gastos inferiores a 10€.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {topCategories.map(([cat, val], i) => {
-              const pct = totalMicroAmount > 0 ? (val / totalMicroAmount) * 100 : 0
-              return (
-                <div key={cat} className="flex items-center justify-between text-xs font-medium bg-card p-2 rounded-xl border border-border/40">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
-                    <span className="text-foreground">{cat}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-foreground">${val.toLocaleString("es-ES", { minimumFractionDigits: 2 })}</span>
-                    <span className="text-[10px] text-muted-foreground w-8 text-right">{pct.toFixed(0)}%</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
 
 export function InvestmentCategoryChart({ transactions, selectedYear }: { transactions: Tx[]; selectedYear?: number }) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -1166,7 +1206,8 @@ export function InvestmentCategoryChart({ transactions, selectedYear }: { transa
 
       <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative shrink-0 flex justify-center items-center">
-          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de distribución por tipo de activo" aria-labelledby="investment-cat-chart-title">
+            <title id="investment-cat-chart-title">Distribución por tipo de activo</title>
             {slices.map((s) => {
               const isActive = activeCategory === s.cat
               return (
@@ -1267,7 +1308,8 @@ export function InvestmentMonthlyBarChart({ transactions, selectedYear }: { tran
       <div className="mt-4 overflow-x-auto pb-2 scrollbar-thin">
         <div className="w-[600px] sm:w-full flex flex-col gap-2">
           <div className="relative h-48 w-full">
-            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img">
+            <svg viewBox="0 0 600 170" className="h-full w-full overflow-visible" role="img" aria-label="Gráfico de inversión mensual" aria-labelledby="investment-monthly-bar-title">
+              <title id="investment-monthly-bar-title">Inversión mensual</title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />

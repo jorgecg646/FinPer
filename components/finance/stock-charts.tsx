@@ -154,8 +154,12 @@ export function CompoundGrowthChart({
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full h-auto max-h-80 overflow-visible"
+            role="img"
+            aria-label="Gráfico de simulación de interés compuesto"
+            aria-labelledby="compound-chart-title"
             onMouseLeave={() => setHoverYearIndex(6)}
           >
+            <title id="compound-chart-title">Simulación de interés compuesto</title>
             <defs>
               <linearGradient id="tailwindCompoundTotalGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#10b981" stopOpacity="0.55" />
@@ -584,8 +588,12 @@ export function IndexComparisonChart({
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto max-h-80 overflow-visible"
+          role="img"
+          aria-label="Gráfico de evolución histórica del patrimonio"
+          aria-labelledby="history-chart-title"
           onMouseLeave={() => setHoverIndex(null)}
         >
+          <title id="history-chart-title">Evolución histórica del patrimonio</title>
           <defs>
             <linearGradient id="posZoneGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.08" />

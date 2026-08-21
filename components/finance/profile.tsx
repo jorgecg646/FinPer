@@ -141,7 +141,7 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Plan</span>
-            <select id="profile-plan" value={profile.plan} onChange={(e) => setProfile((p) => ({ ...p, plan: e.target.value }))}
+            <select id="profile-plan" aria-label="Plan de suscripción" value={profile.plan} onChange={(e) => setProfile((p) => ({ ...p, plan: e.target.value }))}
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring">
               {PLAN_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
             </select>

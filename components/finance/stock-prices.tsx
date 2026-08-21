@@ -540,6 +540,7 @@ export function StockPricesPanel({ initialPositions }: { initialPositions: Stock
             <select
               value={displayCurrency}
               onChange={(e) => handleCurrencyChange(e.target.value)}
+              aria-label="Seleccionar moneda de visualización"
               className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer text-xs"
             >
               {CURRENCIES.map((c) => (
