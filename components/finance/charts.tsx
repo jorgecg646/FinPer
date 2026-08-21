@@ -959,36 +959,30 @@ export function MoneyFlowSankeyChart({ transactions }: { transactions: Tx[] }) {
 
 export function YearOverYearComparisonChart({
   transactions,
-  selectedYear = new Date().getFullYear(),
+  selectedYear = 2026,
 }: {
   transactions: Tx[]
   selectedYear?: number
 }) {
-  const currentYear = new Date().getFullYear()
+  const [yearA, setYearA] = useState<number>(selectedYear)
+  const [yearB, setYearB] = useState<number>(selectedYear - 1)
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
   // Calculate all unique years with data + current and prior years
   const availableYears: number[] = useMemo(() => {
-    const set = new Set<number>([currentYear, currentYear - 1, selectedYear])
+    const set = new Set<number>([selectedYear, selectedYear - 1, 2026, 2025, 2024])
     for (const t of transactions) {
       const y = new Date(t.occurredAt).getFullYear()
       if (!isNaN(y)) set.add(y)
     }
     return Array.from(set).sort((a, b) => b - a)
-  }, [transactions, currentYear, selectedYear])
-
-  const [yearA, setYearA] = useState<number>(selectedYear)
-  const [yearB, setYearB] = useState<number>(() => {
-    const prior = availableYears.find((y: number) => y < selectedYear)
-    return prior !== undefined ? prior : selectedYear - 1
-  })
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  }, [transactions, selectedYear])
 
   // Sync yearA when selectedYear prop changes from outer page
   useEffect(() => {
     setYearA(selectedYear)
     const prior = availableYears.find((y: number) => y < selectedYear)
-    if (prior !== undefined) setYearB(prior)
-    else setYearB(selectedYear - 1)
+    setYearB(prior !== undefined ? prior : selectedYear - 1)
   }, [selectedYear, availableYears])
 
   const yearAData = getYearMonthsData(transactions, yearA)
@@ -1078,9 +1072,7 @@ export function YearOverYearComparisonChart({
               aria-label={`Gráfico comparativo interanual de ${yearA} frente a ${yearB}`}
               aria-labelledby="yoy-comp-chart-title"
             >
-              <title id="yoy-comp-chart-title">
-                Comparativa interanual {yearA} vs {yearB}
-              </title>
+              <title id="yoy-comp-chart-title">{`Comparativa interanual ${yearA} vs ${yearB}`}</title>
               <line x1="0" y1="20" x2="600" y2="20" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="80" x2="600" y2="80" stroke="var(--border)" strokeDasharray="4 4" strokeWidth="1" opacity="0.5" />
               <line x1="0" y1="140" x2="600" y2="140" stroke="var(--border)" strokeWidth="1.5" />
