@@ -1,25 +1,95 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import type { Summary } from "@/app/actions"
+import { useState, useMemo, useEffect } from "react"
+import type { Summary, Tx } from "@/app/actions"
+import { isInvestmentTx } from "@/lib/finance"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rule503020Calculator — Diagnóstico de la Regla 50/30/20 & Salud Financiera
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function Rule503020Calculator({ summary }: { summary: Summary }) {
-  const monthlyIncome = summary.income > 0 ? summary.income / 12 : 2000
-  const monthlyExpense = summary.expenses > 0 ? summary.expenses / 12 : 1400
+export function Rule503020Calculator({
+  summary,
+  transactions = [],
+}: {
+  summary: Summary
+  transactions?: Tx[]
+}) {
+  const selectedYear = summary.selectedYear || new Date().getFullYear()
 
-  // Split estimation (default 50% needs, 30% wants, 20% savings)
-  const defaultNeeds = monthlyExpense * 0.6
-  const defaultWants = monthlyExpense * 0.4
-  const defaultSavings = Math.max(0, monthlyIncome - monthlyExpense)
+  // Real breakdown from user transactions for the selected year
+  const computedBreakdown = useMemo(() => {
+    const yearTxs = transactions.filter((t) => {
+      const d = new Date(t.occurredAt)
+      return d.getFullYear() === selectedYear
+    })
 
-  const [customIncome, setCustomIncome] = useState<number>(Math.round(monthlyIncome))
-  const [needs, setNeeds] = useState<number>(Math.round(defaultNeeds))
-  const [wants, setWants] = useState<number>(Math.round(defaultWants))
-  const [savings, setSavings] = useState<number>(Math.round(defaultSavings))
+    const targetTxs = yearTxs.length > 0 ? yearTxs : transactions
+
+    // Count number of active months with transactions in dataset
+    const activeMonths = new Set(targetTxs.map((t) => new Date(t.occurredAt).getMonth())).size || 1
+
+    let totalIncome = 0
+    let realNeeds = 0
+    let realWants = 0
+    let realInvestments = 0
+
+    const NEEDS_PATTERN = /vivienda|alquiler|hipoteca|supermercado|comida|alimentaci|transporte|gasolina|coche|luz|agua|gas|electricidad|suministro|farmacia|salud|m[eé]dico|educaci[oó]n|seguro|mercadona|carrefour|lidl|dia|aldi|iberdrola|endesa|repsol|mutua/i
+    const INVESTMENT_PATTERN = /inversi|trading|broker|myinvestor|trading212|trade republic|degiro|binance|etf|fondos|bolsa|cripto|bitcoin|ahorro|patrimonio/i
+
+    for (const t of targetTxs) {
+      if (t.type === "income") {
+        totalIncome += t.amount
+      } else {
+        const isInv = isInvestmentTx(t) || INVESTMENT_PATTERN.test(t.category) || INVESTMENT_PATTERN.test(t.name)
+        if (isInv) {
+          realInvestments += t.amount
+        } else if (NEEDS_PATTERN.test(t.category) || NEEDS_PATTERN.test(t.name)) {
+          realNeeds += t.amount
+        } else {
+          realWants += t.amount
+        }
+      }
+    }
+
+    // If summary has income/expenses but transactions list was empty
+    if (totalIncome === 0 && summary.income > 0) {
+      totalIncome = summary.income
+      realNeeds = summary.expenses * 0.5
+      realWants = summary.expenses * 0.3
+      realInvestments = Math.max(0, summary.income - summary.expenses)
+    }
+
+    const monthlyIncome = Math.round(totalIncome / activeMonths) || 2000
+    const monthlyNeeds = Math.round(realNeeds / activeMonths)
+    const monthlyWants = Math.round(realWants / activeMonths)
+    const monthlyInvestments = Math.round(realInvestments / activeMonths)
+    
+    // Net cash savings + direct investment transfers
+    const unspentCashSavings = Math.max(0, monthlyIncome - monthlyNeeds - monthlyWants - monthlyInvestments)
+    const monthlyTotalSavings = monthlyInvestments + unspentCashSavings
+
+    return {
+      monthlyIncome,
+      monthlyNeeds,
+      monthlyWants,
+      monthlySavings: monthlyTotalSavings,
+      monthlyInvestments,
+    }
+  }, [transactions, summary, selectedYear])
+
+  const [customIncome, setCustomIncome] = useState<number>(computedBreakdown.monthlyIncome)
+  const [needs, setNeeds] = useState<number>(computedBreakdown.monthlyNeeds)
+  const [wants, setWants] = useState<number>(computedBreakdown.monthlyWants)
+  const [savings, setSavings] = useState<number>(computedBreakdown.monthlySavings)
+
+  // Sync state when computed breakdown changes (e.g. year selector or transactions update)
+  useEffect(() => {
+    setCustomIncome(computedBreakdown.monthlyIncome)
+    setNeeds(computedBreakdown.monthlyNeeds)
+    setWants(computedBreakdown.monthlyWants)
+    setSavings(computedBreakdown.monthlySavings)
+  }, [computedBreakdown])
 
   // 50/30/20 targets
   const targetNeeds = customIncome * 0.5
@@ -39,7 +109,8 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
     let pts = 100
     if (pctNeeds > 50) pts -= (pctNeeds - 50) * 1.5
     if (pctWants > 30) pts -= (pctWants - 30) * 1.5
-    if (pctSavings < 20) pts -= (20 - pctSavings) * 2
+    if (pctSavings < 20) pts -= (20 - pctSavings) * 2.5
+    else if (pctSavings >= 20) pts = Math.min(100, pts + (pctSavings - 20) * 0.5)
     return Math.max(10, Math.min(100, Math.round(pts)))
   }, [pctNeeds, pctWants, pctSavings])
 
@@ -52,11 +123,11 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
               ⚖️
             </span>
             <h3 className="text-base sm:text-lg font-black text-foreground">
-              Diagnóstico de Salud Financiera · Regla 50 / 30 / 20
+              Diagnóstico de Salud Financiera · Regla 50 / 30 / 20 ({selectedYear})
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Analiza cómo se distribuyen tus ingresos entre Necesidades Básicas, Ocio/Caprichos y Ahorro
+            Tus transferencias a brokers (Trading212, MyInvestor, etc.) se computan automáticamente como Ahorro/Inversión
           </p>
         </div>
 
@@ -66,15 +137,19 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
             <span className="text-[10px] uppercase font-bold text-muted-foreground">Puntuación</span>
             <p className="text-base font-black text-foreground">{score} / 100</p>
           </div>
-          <div className={`h-3 w-3 rounded-full ${score >= 80 ? "bg-positive" : score >= 60 ? "bg-amber-500" : "bg-destructive"}`} />
+          <div className={`h-3.5 w-3.5 rounded-full ${score >= 80 ? "bg-positive" : score >= 60 ? "bg-amber-500" : "bg-destructive"}`} />
         </div>
       </div>
 
       {/* Income Input */}
       <div className="p-4 rounded-2xl bg-secondary/30 border border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <label htmlFor="input-503020-income" className="text-xs font-black text-foreground">Tus Ingresos Netos Mensuales:</label>
-          <p className="text-[11px] text-muted-foreground">Base sobre la que se calculan las proporciones ideales</p>
+          <label htmlFor="input-503020-income" className="text-xs font-black text-foreground">
+            Tus Ingresos Netos Mensuales Medios:
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            Base mensual calculada a partir de tus ingresos reales en {selectedYear}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -101,12 +176,12 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
                 {pctNeeds.toFixed(0)}%
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Alquiler, hipoteca, súper, luz, agua, transporte básico</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Alquiler, súper, comida, luz, transporte, suministros básicos</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-xs">
-              <label htmlFor="needs-input" className="text-muted-foreground">Tu gasto:</label>
+              <label htmlFor="needs-input" className="text-muted-foreground">Tu gasto real:</label>
               <div className="flex items-center gap-1">
                 <input
                   id="needs-input"
@@ -137,12 +212,12 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
                 {pctWants.toFixed(0)}%
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Restaurantes, compras, viajes, suscripciones y hobbies</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Restaurantes, compras, ocio, hobbies, viajes y caprichos</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-xs">
-              <label htmlFor="wants-input" className="text-muted-foreground">Tu gasto:</label>
+              <label htmlFor="wants-input" className="text-muted-foreground">Tu gasto real:</label>
               <div className="flex items-center gap-1">
                 <input
                   id="wants-input"
@@ -173,12 +248,12 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
                 {pctSavings.toFixed(0)}%
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Fondo de emergencia, aportaciones a fondos indexados, metas</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Trading212, brokers, aportaciones indexadas y ahorro líquido</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-xs">
-              <label htmlFor="savings-input" className="text-muted-foreground">Tu ahorro:</label>
+              <label htmlFor="savings-input" className="text-muted-foreground">Tu ahorro/inversión:</label>
               <div className="flex items-center gap-1">
                 <input
                   id="savings-input"
@@ -209,7 +284,7 @@ export function Rule503020Calculator({ summary }: { summary: Summary }) {
         <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-2">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" /> Necesidades ({pctNeeds.toFixed(1)}%)</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-indigo-500" /> Ocio & Deseos ({pctWants.toFixed(1)}%)</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-positive" /> Ahorro ({pctSavings.toFixed(1)}%)</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-positive" /> Ahorro & Inversión ({pctSavings.toFixed(1)}%)</span>
         </div>
       </div>
     </div>

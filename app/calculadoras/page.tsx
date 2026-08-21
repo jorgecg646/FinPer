@@ -60,7 +60,7 @@ export default async function CalculadorasPage({
           <ScenarioSimulator summary={summary} transactions={transactions} />
 
           {/* 3. 50/30/20 Financial Health Diagnosis */}
-          <Rule503020Calculator summary={summary} />
+          <Rule503020Calculator summary={summary} transactions={transactions} />
         </div>
       </div>
     </LayoutShell>

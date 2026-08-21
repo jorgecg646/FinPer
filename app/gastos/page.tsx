@@ -8,6 +8,7 @@ import {
   YearSelector,
 } from "@/components/finance/charts"
 import { RecentTransactions } from "@/components/finance/transactions"
+import { isInvestmentTx } from "@/lib/finance"
 import { TrendingDown } from "lucide-react"
 
 export const dynamic = "force-dynamic"
@@ -24,10 +25,14 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
   const [summary, transactions] = await Promise.all([getSummary(targetYear), getTransactions()])
   const selectedYear = summary.selectedYear
 
-  const expenseTransactions = transactions.filter((t) => {
+  // Real living expenses (excluding capital transfers to brokers / investments)
+  const nonInvestmentTxs = transactions.filter((t) => !isInvestmentTx(t))
+  const expenseTransactions = nonInvestmentTxs.filter((t) => {
     const d = new Date(t.occurredAt)
     return t.type === "expense" && d.getFullYear() === selectedYear
   })
+
+  const totalLivingExpenses = expenseTransactions.reduce((s, t) => s + t.amount, 0)
 
   return (
     <LayoutShell balance={summary.balance}>
@@ -37,9 +42,9 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
             <TrendingDown className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Total gastado en {selectedYear}</p>
+            <p className="text-sm text-muted-foreground">Total gastos de vida en {selectedYear}</p>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              -${summary.expenses.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              -${totalLivingExpenses.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h1>
           </div>
         </header>
@@ -52,16 +57,16 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
       <div className="mt-8 flex flex-col gap-6">
         {/* Top Grid: Gastos por Mes (2026) side-by-side with Gastos por Categoría */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ExpenseMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />
+          <ExpenseMonthlyBarChart transactions={nonInvestmentTxs} selectedYear={selectedYear} />
           <ExpenseChart transactions={expenseTransactions} />
         </div>
 
         {/* 2nd Section: Movimientos */}
-        <RecentTransactions transactions={transactions.filter(t => t.type === "expense")} showAll typeFilter="expense" selectedYear={selectedYear} />
+        <RecentTransactions transactions={nonInvestmentTxs.filter(t => t.type === "expense")} showAll typeFilter="expense" selectedYear={selectedYear} />
 
         {/* 3rd Section: Restantes gráficas */}
         <ExpenseCategoryProgressChart transactions={expenseTransactions} />
-        <YearOverYearComparisonChart transactions={transactions} selectedYear={selectedYear} />
+        <YearOverYearComparisonChart transactions={nonInvestmentTxs} selectedYear={selectedYear} />
       </div>
     </LayoutShell>
   )
