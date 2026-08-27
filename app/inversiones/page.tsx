@@ -6,6 +6,7 @@ import {
 } from "@/components/finance/charts"
 import { StockPricesPanel } from "@/components/finance/stock-prices"
 import { RecentTransactions } from "@/components/finance/transactions"
+import { MarketIndicesPanel } from "@/components/finance/market-indices"
 import { isInvestmentTx } from "@/lib/finance"
 import { TrendingUp } from "lucide-react"
 
@@ -57,6 +58,9 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
       </div>
 
       <div className="mt-8 flex flex-col gap-6">
+        {/* Global Market Indices — CNBC style */}
+        <MarketIndicesPanel />
+
         {/* Real-time market prices & live portfolio summary */}
         <StockPricesPanel initialPositions={stockPositions} />
 
