@@ -1,24 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// Force Node.js runtime — @mathieuc/tradingview requires WebSockets (not available in Edge)
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-interface QuoteData {
-  lp?: number
-  ch?: number
-  chp?: number
-  high_price?: number
-  low_price?: number
-  open_price?: number
-  prev_close_price?: number
-  volume?: number
-  description?: string
-  short_name?: string
-  currency_code?: string
-  exchange?: string
-  logoid?: string
-}
 
 export interface StockPriceResult {
   symbol: string
@@ -53,10 +36,93 @@ export async function GET(req: NextRequest) {
   const cached = priceCache.get(symbol)
   if (cached && now - cached.timestamp < CACHE_TTL_MS) {
     return NextResponse.json(cached.data, {
-      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   }
 
+  // 1. Primary fast method: TradingView Global Scanner HTTP API (Thread-safe, 0 WebSocket race conditions)
+  try {
+    const scanRes = await fetch("https://scanner.tradingview.com/global/scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      },
+      body: JSON.stringify({
+        symbols: { tickers: [symbol] },
+        columns: [
+          "close",
+          "change_abs",
+          "change",
+          "Perf.YTD",
+          "high",
+          "low",
+          "open",
+          "volume",
+          "description",
+          "currency",
+          "exchange",
+          "logoid",
+        ],
+      }),
+      signal: AbortSignal.timeout(6000),
+    })
+
+    if (scanRes.ok) {
+      const scanData = await scanRes.json()
+      const row = scanData.data?.[0]
+
+      if (row && Array.isArray(row.d) && typeof row.d[0] === "number" && !isNaN(row.d[0])) {
+        const [
+          close,
+          changeAbs,
+          changePct,
+          perfYtd,
+          high,
+          low,
+          open,
+          volume,
+          description,
+          currency,
+          exchange,
+          logoid,
+        ] = row.d
+
+        const price = Number(close)
+        const change = typeof changeAbs === "number" ? Number(changeAbs) : 0
+        const changePercent = typeof changePct === "number" ? Number(changePct) : 0
+        const prevClose = price - change
+
+        const result: StockPriceResult = {
+          symbol,
+          name: typeof description === "string" && description ? description : symbol,
+          price,
+          change,
+          changePercent,
+          ytdChangePercent: typeof perfYtd === "number" && !isNaN(perfYtd) ? Number(perfYtd) : changePercent,
+          high: typeof high === "number" ? high : price,
+          low: typeof low === "number" ? low : price,
+          open: typeof open === "number" ? open : prevClose,
+          prevClose,
+          volume: typeof volume === "number" ? volume : 0,
+          currency: typeof currency === "string" && currency ? currency.toUpperCase() : "USD",
+          exchange: typeof exchange === "string" ? exchange : symbol.split(":")[0] || "",
+          timestamp: now,
+          logoid: typeof logoid === "string" ? logoid : "",
+        }
+
+        priceCache.set(symbol, { timestamp: now, data: result })
+
+        return NextResponse.json(result, {
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        })
+      }
+    }
+  } catch {
+    // fallback to secondary method below
+  }
+
+  // 2. Secondary Fallback: Isolated Quote Session
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const TradingView = require("@mathieuc/tradingview")
@@ -66,19 +132,20 @@ export async function GET(req: NextRequest) {
       const timeout = setTimeout(() => {
         try { client.end() } catch { /* ignore */ }
         reject(new Error("Timeout fetching price for " + symbol))
-      }, 12000)
+      }, 10000)
 
-      // Use Quote Session — lighter than Chart, gives real-time price data
       const quote = new client.Session.Quote({ fields: "all" })
       const market = new quote.Market(symbol)
 
       let resolved = false
-      const accumulated: QuoteData = {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const accumulated: Record<string, any> = {}
 
-      market.onData((data: QuoteData) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      market.onData((data: any) => {
         Object.assign(accumulated, data)
 
-        // Wait until we have a last price
+        // Ensure the packet belongs to this market and has price
         if (!accumulated.lp || resolved) return
         resolved = true
         clearTimeout(timeout)
@@ -86,25 +153,22 @@ export async function GET(req: NextRequest) {
         try { quote.delete() } catch { /* ignore */ }
         try { client.end() } catch { /* ignore */ }
 
-        const rawData = accumulated as Record<string, unknown>
-        const perfYtd =
-          typeof rawData["Perf.YTD"] === "number"
-            ? rawData["Perf.YTD"]
-            : typeof rawData["Perf.1Y"] === "number"
-            ? rawData["Perf.1Y"]
-            : accumulated.chp ?? 0
+        const price = accumulated.lp ?? 0
+        const change = accumulated.ch ?? 0
+        const changePercent = accumulated.chp ?? 0
+        const prevClose = accumulated.prev_close_price ?? price - change
 
         resolve({
           symbol,
           name: accumulated.description ?? accumulated.short_name ?? symbol,
-          price: accumulated.lp ?? 0,
-          change: accumulated.ch ?? 0,
-          changePercent: accumulated.chp ?? 0,
-          ytdChangePercent: perfYtd,
-          high: accumulated.high_price ?? 0,
-          low: accumulated.low_price ?? 0,
-          open: accumulated.open_price ?? 0,
-          prevClose: accumulated.prev_close_price ?? 0,
+          price,
+          change,
+          changePercent,
+          ytdChangePercent: accumulated["Perf.YTD"] ?? accumulated["Perf.1Y"] ?? changePercent,
+          high: accumulated.high_price ?? price,
+          low: accumulated.low_price ?? price,
+          open: accumulated.open_price ?? prevClose,
+          prevClose,
           volume: accumulated.volume ?? 0,
           currency: accumulated.currency_code ?? "USD",
           exchange: accumulated.exchange ?? "",
@@ -113,7 +177,8 @@ export async function GET(req: NextRequest) {
         })
       })
 
-      market.onError((...args: unknown[]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      market.onError((...args: any[]) => {
         if (resolved) return
         resolved = true
         clearTimeout(timeout)
@@ -122,39 +187,10 @@ export async function GET(req: NextRequest) {
       })
     })
 
-    // Fetch YTD performance from TradingView scanner API in parallel
-    let perfYtd = 0
-    try {
-      const scanRes = await fetch("https://scanner.tradingview.com/global/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbols: { tickers: [symbol] },
-          columns: ["Perf.YTD"],
-        }),
-      })
-      if (scanRes.ok) {
-        const scanData = await scanRes.json()
-        const val = scanData.data?.[0]?.d?.[0]
-        if (typeof val === "number" && !isNaN(val)) {
-          perfYtd = val
-        }
-      }
-    } catch {
-      /* ignore */
-    }
+    priceCache.set(symbol, { timestamp: now, data: result })
 
-    const finalResult: StockPriceResult = {
-      ...result,
-      ytdChangePercent: perfYtd !== 0 ? perfYtd : result.changePercent,
-    }
-
-    priceCache.set(symbol, { timestamp: now, data: finalResult })
-
-    return NextResponse.json(finalResult, {
-      headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
-      },
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"

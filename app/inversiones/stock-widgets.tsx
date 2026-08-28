@@ -60,7 +60,9 @@ export const SUGGESTIONS = [
 ]
 
 export async function fetchQuote(symbol: string): Promise<StockQuote> {
-  const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol)}`)
+  const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol)}`, {
+    cache: "no-store",
+  })
   const json = await res.json()
   if (!res.ok || json.error) throw new Error(json.error ?? "Error de red")
   return json as StockQuote
