@@ -2,9 +2,10 @@ import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import { YearSelector } from "@/components/finance/charts"
 import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
-import { MicroExpensesLongTermCalculator } from "@/components/finance/micro-expenses-calculator"
-import { ScenarioSimulator } from "@/components/finance/scenario-simulator"
-import { Rule503020Calculator } from "@/components/finance/financial-calculators"
+import { MicroExpensesLongTermCalculator } from "./micro-expenses-calculator"
+import { ScenarioSimulator } from "./scenario-simulator"
+import { Rule503020Calculator } from "./financial-calculators"
+import { FireCalculator } from "./fire-calculator"
 import { Calculator } from "lucide-react"
 
 export const dynamic = "force-dynamic"
@@ -53,14 +54,17 @@ export default async function CalculadorasPage({
 
         {/* Stack of Calculators & Simulators */}
         <div className="flex flex-col gap-8">
-          {/* 1. Micro-Expenses Long Term Calculator */}
-          <MicroExpensesLongTermCalculator transactions={transactions} />
+          {/* 1. Diagnóstico de Salud Financiera · Regla 50 / 30 / 20 */}
+          <Rule503020Calculator summary={summary} transactions={transactions} />
 
-          {/* 2. What-If Financial Scenario Simulator */}
+          {/* 2. Calculadora de Libertad Financiera (F.I.R.E.) */}
+          <FireCalculator summary={summary} transactions={transactions} />
+
+          {/* 3. Simulador de Escenarios Financieros ("¿Qué pasaría si...?") */}
           <ScenarioSimulator summary={summary} transactions={transactions} />
 
-          {/* 3. 50/30/20 Financial Health Diagnosis */}
-          <Rule503020Calculator summary={summary} transactions={transactions} />
+          {/* 4. Calculadora de Impacto del Gasto Hormiga a Largo Plazo */}
+          <MicroExpensesLongTermCalculator transactions={transactions} />
         </div>
       </div>
     </LayoutShell>

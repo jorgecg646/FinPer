@@ -203,7 +203,7 @@ export function IncomeCategoryChart({ transactions }: { transactions: Tx[] }) {
 
       <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative shrink-0 flex justify-center items-center">
-          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de distribución por fuente de ingreso" aria-labelledby="income-sources-chart-title">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de distribución por fuente de ingreso" aria-labelledby="income-sources-chart-title" suppressHydrationWarning>
             <title id="income-sources-chart-title">Distribución por fuente de ingreso</title>
             {slices.map((s) => {
               const isActive = activeCategory === s.cat
@@ -216,6 +216,7 @@ export function IncomeCategoryChart({ transactions }: { transactions: Tx[] }) {
                   className="cursor-pointer transition-all duration-200 hover:opacity-100"
                   onMouseEnter={() => setActiveCategory(s.cat)}
                   onMouseLeave={() => setActiveCategory(null)}
+                  suppressHydrationWarning
                 />
               )
             })}
@@ -303,7 +304,7 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
 
       <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative shrink-0 flex justify-center items-center">
-          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de gastos por categoría" aria-labelledby="expense-categories-chart-title">
+          <svg viewBox="0 0 200 200" className="h-36 w-36 sm:h-44 sm:w-44" role="img" aria-label="Gráfico de gastos por categoría" aria-labelledby="expense-categories-chart-title" suppressHydrationWarning>
             <title id="expense-categories-chart-title">Gastos por categoría</title>
             {slices.map((s) => {
               const isActive = activeCategory === s.cat
@@ -316,6 +317,7 @@ export function ExpenseChart({ transactions }: { transactions: Tx[] }) {
                   className="cursor-pointer transition-all duration-200 hover:opacity-100"
                   onMouseEnter={() => setActiveCategory(s.cat)}
                   onMouseLeave={() => setActiveCategory(null)}
+                  suppressHydrationWarning
                 />
               )
             })}

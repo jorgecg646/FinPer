@@ -53,20 +53,38 @@ export function formatCompactCurrency(val: number, dispSym: string): string {
   return `${val.toFixed(0)} ${dispSym}`
 }
 
-// ─── Geometry Helpers ────────────────────────────────────────────────────────
+// ─── Geometry Helpers (Memoized for 60 FPS charts) ──────────────────────────
 
+const polarCache = new Map<string, { x: number; y: number }>()
 export function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
+  const key = `${cx}_${cy}_${r}_${deg}`
+  const cached = polarCache.get(key)
+  if (cached) return cached
+
   const rad = ((deg - 90) * Math.PI) / 180
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+  const x = Math.round((cx + r * Math.cos(rad)) * 1000) / 1000
+  const y = Math.round((cy + r * Math.sin(rad)) * 1000) / 1000
+  const res = { x, y }
+  if (polarCache.size < 500) polarCache.set(key, res)
+  return res
 }
 
+const arcPathCache = new Map<string, string>()
 export function arcPath(cx: number, cy: number, r: number, start: number, end: number) {
+  const key = `${cx}_${cy}_${r}_${start}_${end}`
+  const cached = arcPathCache.get(key)
+  if (cached) return cached
+
   if (end - start >= 359.9) {
-    return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`
+    const full = `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`
+    if (arcPathCache.size < 500) arcPathCache.set(key, full)
+    return full
   }
   const s = polarToCartesian(cx, cy, r, start)
   const e = polarToCartesian(cx, cy, r, end)
-  return `M ${cx} ${cy} L ${s.x} ${s.y} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${e.x} ${e.y} Z`
+  const res = `M ${cx} ${cy} L ${s.x} ${s.y} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${e.x} ${e.y} Z`
+  if (arcPathCache.size < 500) arcPathCache.set(key, res)
+  return res
 }
 
 // ─── FX Helper ───────────────────────────────────────────────────────────────

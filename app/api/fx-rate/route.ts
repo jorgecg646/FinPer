@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server"
 // Force Node.js runtime
 export const runtime = "nodejs"
 
+// In-memory cache for FX rates (60s TTL)
+const fxCache = new Map<string, { timestamp: number; rate: number }>()
+const FX_CACHE_TTL_MS = 60_000
+
 /**
  * GET /api/fx-rate?from=USD&to=EUR
  * Returns the conversion rate: 1 {from} = {rate} {to}
@@ -18,6 +22,16 @@ export async function GET(req: NextRequest) {
 
   if (from === to) {
     return NextResponse.json({ rate: 1, from, to })
+  }
+
+  const cacheKey = `${from}_${to}`
+  const now = Date.now()
+  const cached = fxCache.get(cacheKey)
+  if (cached && now - cached.timestamp < FX_CACHE_TTL_MS) {
+    return NextResponse.json(
+      { rate: cached.rate, from, to },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } }
+    )
   }
 
   try {
@@ -57,12 +71,13 @@ export async function GET(req: NextRequest) {
       })
     })
 
+    fxCache.set(cacheKey, { timestamp: now, rate })
+
     return NextResponse.json(
       { rate, from, to },
       {
         headers: {
-          // Cache for 5 minutes — FX rates don't need to be real-time for P&L display
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=120",
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
         },
       }
     )

@@ -3,11 +3,11 @@ import { LayoutShell } from "@/components/finance/navigation"
 import { Topbar, BalanceCard, StatCards } from "@/components/finance/dashboard"
 import { RecentTransactions } from "@/components/finance/transactions"
 import {
+  FinancialOverviewRatioChart,
+  YearSelector,
   MonthlyComparisonChart,
   NetSavingsTrendChart,
-  FinancialOverviewRatioChart,
   MoneyFlowSankeyChart,
-  YearSelector,
 } from "@/components/finance/charts"
 import { AnnualWrappedBanner } from "@/components/finance/annual-wrapped"
 import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"

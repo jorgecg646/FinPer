@@ -1,15 +1,11 @@
 import { getSummary, getTransactions, getStockPositions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
-import {
-  InvestmentMonthlyBarChart,
-  YearSelector,
-} from "@/components/finance/charts"
-import { StockPricesPanel } from "@/components/finance/stock-prices"
+import { YearSelector, InvestmentMonthlyBarChart } from "@/components/finance/charts"
+import { StockPricesPanel } from "./stock-prices"
 import { RecentTransactions } from "@/components/finance/transactions"
-import { MarketIndicesPanel } from "@/components/finance/market-indices"
+import { MarketIndicesPanel } from "./market-indices"
 import { isInvestmentTx } from "@/lib/finance"
 import { TrendingUp } from "lucide-react"
-
 
 export const dynamic = "force-dynamic"
 
@@ -75,7 +71,6 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
           defaultCategory="Inversiones"
         />
       </div>
-
     </LayoutShell>
   )
 }

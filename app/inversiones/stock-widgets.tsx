@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   TrendingUp,
   TrendingDown,
@@ -116,9 +116,8 @@ export function PortfolioPosition({
 
   return (
     <div
-      className={`mt-2 rounded-xl p-3 border ${
-        isTotalGain ? "bg-positive/5 border-positive/20" : "bg-destructive/5 border-destructive/20"
-      }`}
+      className={`mt-2 rounded-xl p-3 border ${isTotalGain ? "bg-positive/5 border-positive/20" : "bg-destructive/5 border-destructive/20"
+        }`}
     >
       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2 flex items-center justify-between">
         <span className="flex items-center gap-1">
@@ -381,6 +380,8 @@ export function TickerCard({
     position.shares > 0 &&
     position.avgPrice > 0
 
+  const [showChartModal, setShowChartModal] = useState(false)
+
   const isPositive = state.status === "ok" ? state.data.changePercent >= 0 : null
   const displayName =
     state.status === "ok" && state.data.name && !state.data.name.includes(":")
@@ -388,223 +389,363 @@ export function TickerCard({
       : position.label || position.symbol
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-secondary/30 p-4 transition-all hover:border-primary/30 hover:bg-secondary/50">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {state.status === "ok" && state.data.logoid && !logoError ? (
-            <img
-              src={`https://s3-symbol-logo.tradingview.com/${state.data.logoid}--big.svg`}
-              alt={displayName}
-              className="h-9 w-9 shrink-0 rounded-xl object-contain bg-secondary/60 p-1"
-              onError={() => setLogoError(true)}
-            />
-          ) : (
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                isPositive === true
-                  ? "bg-positive/10 text-positive"
-                  : isPositive === false
-                  ? "bg-destructive/10 text-destructive"
-                  : "bg-primary/10 text-primary"
-              }`}
-            >
-              {isPositive === true ? (
-                <TrendingUp className="h-4 w-4" />
-              ) : isPositive === false ? (
-                <TrendingDown className="h-4 w-4" />
-              ) : (
-                <BarChart2 className="h-4 w-4" />
-              )}
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
-            <p className="text-[10px] text-muted-foreground font-mono truncate">{position.symbol}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            type="button"
-            onClick={load}
-            disabled={state.status === "loading"}
-            aria-label="Actualizar precio"
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+    <>
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-secondary/30 p-4 transition-all hover:border-primary/30 hover:bg-secondary/50">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div
+            onClick={() => setShowChartModal(true)}
+            title="Haz clic para ver gráfico interactivo de TradingView"
+            className="flex items-center gap-2.5 min-w-0 cursor-pointer group"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${rotating ? "animate-spin" : ""}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing((v) => !v)}
-            title="Editar posición"
-            aria-label="Editar posición"
-            className={`rounded-full p-1.5 transition-colors cursor-pointer ${
-              editing
-                ? "text-primary bg-primary/10"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label="Eliminar símbolo"
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {state.status === "loading" && (
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-24 animate-pulse rounded-lg bg-border/60" />
-          <div className="h-4 w-16 animate-pulse rounded-lg bg-border/40" />
-        </div>
-      )}
-
-      {state.status === "ok" && (
-        <>
-          <div className="flex items-end gap-2 flex-wrap">
-            <span className="text-2xl font-extrabold tracking-tight text-foreground tabular-nums">
-              {state.data.price.toLocaleString("es-ES", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 4,
-              })}
-              <span className="text-xs font-semibold text-muted-foreground ml-1">
-                {state.data.currency}
-              </span>
-            </span>
-            <span
-              className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                state.data.changePercent >= 0
-                  ? "bg-positive/10 text-positive"
-                  : "bg-destructive/10 text-destructive"
-              }`}
-            >
-              {state.data.changePercent >= 0 ? (
-                <TrendingUp className="h-3 w-3" />
-              ) : (
-                <TrendingDown className="h-3 w-3" />
-              )}
-              {state.data.changePercent >= 0 ? "+" : ""}
-              {state.data.changePercent.toFixed(2)}%
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold text-[9px] uppercase tracking-wide">Apertura</span>
-              <span className="font-bold text-foreground tabular-nums">
-                {state.data.open > 0
-                  ? state.data.open.toLocaleString("es-ES", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 4,
-                    })
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold text-[9px] uppercase tracking-wide">Máx / Mín</span>
-              <span className="font-bold text-foreground tabular-nums text-[10px]">
-                {state.data.high > 0
-                  ? state.data.high.toLocaleString("es-ES", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : "—"}{" "}
-                /{" "}
-                {state.data.low > 0
-                  ? state.data.low.toLocaleString("es-ES", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold text-[9px] uppercase tracking-wide">Variación</span>
-              <span
-                className={`font-bold tabular-nums ${
-                  state.data.change >= 0 ? "text-positive" : "text-destructive"
-                }`}
+            {state.status === "ok" && state.data.logoid && !logoError ? (
+              <img
+                src={`https://s3-symbol-logo.tradingview.com/${state.data.logoid}--big.svg`}
+                alt={displayName}
+                className="h-9 w-9 shrink-0 rounded-xl object-contain bg-secondary/60 p-1 group-hover:scale-105 transition-transform"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl group-hover:scale-105 transition-transform ${isPositive === true
+                    ? "bg-positive/10 text-positive"
+                    : isPositive === false
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-primary/10 text-primary"
+                  }`}
               >
-                {state.data.change >= 0 ? "+" : ""}
-                {state.data.change.toLocaleString("es-ES", {
+                {isPositive === true ? (
+                  <TrendingUp className="h-4 w-4" />
+                ) : isPositive === false ? (
+                  <TrendingDown className="h-4 w-4" />
+                ) : (
+                  <BarChart2 className="h-4 w-4" />
+                )}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1">
+                <span>{displayName}</span>
+                <BarChart2 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </p>
+              <p className="text-[10px] text-muted-foreground font-mono truncate">{position.symbol}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={load}
+              disabled={state.status === "loading"}
+              aria-label="Actualizar precio"
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${rotating ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing((v) => !v)}
+              title="Editar posición"
+              aria-label="Editar posición"
+              className={`rounded-full p-1.5 transition-colors cursor-pointer ${editing
+                  ? "text-primary bg-primary/10"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="Eliminar símbolo"
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {state.status === "loading" && (
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-24 animate-pulse rounded-lg bg-border/60" />
+            <div className="h-4 w-16 animate-pulse rounded-lg bg-border/40" />
+          </div>
+        )}
+
+        {state.status === "ok" && (
+          <>
+            <div className="flex items-end gap-2 flex-wrap">
+              <span className="text-2xl font-extrabold tracking-tight text-foreground tabular-nums">
+                {state.data.price.toLocaleString("es-ES", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 4,
                 })}
+                <span className="text-xs font-semibold text-muted-foreground ml-1">
+                  {state.data.currency}
+                </span>
+              </span>
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${state.data.changePercent >= 0
+                    ? "bg-positive/10 text-positive"
+                    : "bg-destructive/10 text-destructive"
+                  }`}
+              >
+                {state.data.changePercent >= 0 ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
+                {state.data.changePercent >= 0 ? "+" : ""}
+                {state.data.changePercent.toFixed(2)}%
               </span>
             </div>
+
+            <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold text-[9px] uppercase tracking-wide">Apertura</span>
+                <span className="font-bold text-foreground tabular-nums">
+                  {state.data.open > 0
+                    ? state.data.open.toLocaleString("es-ES", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 4,
+                    })
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold text-[9px] uppercase tracking-wide">Máx / Mín</span>
+                <span className="font-bold text-foreground tabular-nums text-[10px]">
+                  {state.data.high > 0
+                    ? state.data.high.toLocaleString("es-ES", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                    : "—"}{" "}
+                  /{" "}
+                  {state.data.low > 0
+                    ? state.data.low.toLocaleString("es-ES", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold text-[9px] uppercase tracking-wide">Variación</span>
+                <span
+                  className={`font-bold tabular-nums ${state.data.change >= 0 ? "text-positive" : "text-destructive"
+                    }`}
+                >
+                  {state.data.change >= 0 ? "+" : ""}
+                  {state.data.change.toLocaleString("es-ES", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            {hasPosition && !editing && (() => {
+              const nativeCurrency = state.data.currency
+              const { currentFx } = getFxPair(nativeCurrency, displayCurrency, fxRates)
+              return (
+                <PortfolioPosition
+                  shares={position.shares!}
+                  avgPrice={position.avgPrice!}
+                  avgFxRate={position.avgFxRate ?? null}
+                  currentPrice={state.data.price}
+                  currency={nativeCurrency}
+                  displayCurrency={displayCurrency}
+                  conversionRate={currentFx}
+                />
+              )
+            })()}
+
+            {!hasPosition && !editing && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary/70 hover:text-primary transition-colors cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+                Añadir nº acciones y precio medio
+              </button>
+            )}
+
+            <p className="text-[9px] text-muted-foreground/60">
+              Act.{" "}
+              {new Date(state.data.timestamp).toLocaleTimeString("es-ES", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+              {state.data.exchange ? ` · ${state.data.exchange}` : ""}
+            </p>
+          </>
+        )}
+
+        {state.status === "error" && (
+          <div className="flex items-center gap-2 text-destructive text-xs">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="line-clamp-2">{state.message}</span>
+          </div>
+        )}
+
+        {editing && (() => {
+          const nativeCurrency = state.status === "ok" ? state.data.currency : "USD"
+          const { currentFx } = getFxPair(nativeCurrency, displayCurrency, fxRates)
+          return (
+            <PositionForm
+              shares={position.shares ?? null}
+              avgPrice={position.avgPrice ?? null}
+              avgFxRate={position.avgFxRate ?? null}
+              currency={nativeCurrency}
+              displayCurrency={displayCurrency}
+              conversionRate={currentFx}
+              onSave={(s, p, fx) => {
+                onUpdate(s, p, fx)
+                setEditing(false)
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          )
+        })()}
+      </div>
+
+      {showChartModal && (
+        <StockTradingViewModal
+          symbol={position.symbol}
+          name={displayName}
+          price={state.status === "ok" ? state.data.price : undefined}
+          changePercent={state.status === "ok" ? state.data.changePercent : undefined}
+          currency={state.status === "ok" ? state.data.currency : undefined}
+          onClose={() => setShowChartModal(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// ─── Stock TradingView Interactive Chart Modal Component ─────────────────────
+
+export function StockTradingViewModal({
+  symbol,
+  name,
+  price,
+  changePercent,
+  currency,
+  onClose,
+}: {
+  symbol: string
+  name: string
+  price?: number
+  changePercent?: number
+  currency?: string
+  onClose: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isUp = (changePercent ?? 0) >= 0
+  const directTvUrl = `https://es.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    containerRef.current.innerHTML = ""
+
+    const widgetContainer = document.createElement("div")
+    widgetContainer.id = "tv_stock_modal_container"
+    widgetContainer.style.width = "100%"
+    widgetContainer.style.height = "100%"
+    containerRef.current.appendChild(widgetContainer)
+
+    const initWidget = () => {
+      if (typeof (window as any).TradingView !== "undefined") {
+        new (window as any).TradingView.widget({
+          autosize: true,
+          symbol: symbol,
+          interval: "D",
+          timezone: "Europe/Madrid",
+          theme: "dark",
+          style: "1",
+          locale: "es",
+          toolbar_bg: "#09111e",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          container_id: "tv_stock_modal_container",
+        })
+      }
+    }
+
+    if ((window as any).TradingView) {
+      initWidget()
+    } else {
+      const script = document.createElement("script")
+      script.src = "https://s3.tradingview.com/tv.js"
+      script.async = true
+      script.onload = initWidget
+      containerRef.current.appendChild(script)
+    }
+  }, [symbol])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl bg-[#09111e] border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[85vh] max-h-[720px] text-white relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3.5 bg-[#050b14] border-b border-white/15 shrink-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black uppercase tracking-wider text-white">{name}</h3>
+              <span className="text-xs font-mono font-bold text-slate-400">{symbol}</span>
+            </div>
+            <a
+              href={directTvUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 hover:underline"
+            >
+              <span>Abrir directo en TradingView</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
           </div>
 
-          {hasPosition && !editing && (() => {
-            const nativeCurrency = state.data.currency
-            const { currentFx } = getFxPair(nativeCurrency, displayCurrency, fxRates)
-            return (
-              <PortfolioPosition
-                shares={position.shares!}
-                avgPrice={position.avgPrice!}
-                avgFxRate={position.avgFxRate ?? null}
-                currentPrice={state.data.price}
-                currency={nativeCurrency}
-                displayCurrency={displayCurrency}
-                conversionRate={currentFx}
-              />
-            )
-          })()}
+          <div className="flex items-center gap-4">
+            {price !== undefined && (
+              <div className="text-right">
+                <div className="text-base font-black text-white tabular-nums">
+                  {price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {currency}
+                </div>
+                {changePercent !== undefined && (
+                  <div className={`text-xs font-extrabold tabular-nums ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
+                    {isUp ? "▲ +" : "▼ "}{changePercent.toFixed(2)}%
+                  </div>
+                )}
+              </div>
+            )}
 
-          {!hasPosition && !editing && (
             <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary/70 hover:text-primary transition-colors cursor-pointer"
+              onClick={onClose}
+              aria-label="Cerrar gráfico"
+              className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/20 text-slate-300 hover:text-white transition-colors"
             >
-              <Plus className="h-3 w-3" />
-              Añadir nº acciones y precio medio
+              <X className="h-5 w-5" />
             </button>
-          )}
-
-          <p className="text-[9px] text-muted-foreground/60">
-            Act.{" "}
-            {new Date(state.data.timestamp).toLocaleTimeString("es-ES", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-            {state.data.exchange ? ` · ${state.data.exchange}` : ""}
-          </p>
-        </>
-      )}
-
-      {state.status === "error" && (
-        <div className="flex items-center gap-2 text-destructive text-xs">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span className="line-clamp-2">{state.message}</span>
+          </div>
         </div>
-      )}
 
-      {editing && (() => {
-        const nativeCurrency = state.status === "ok" ? state.data.currency : "USD"
-        const { currentFx } = getFxPair(nativeCurrency, displayCurrency, fxRates)
-        return (
-          <PositionForm
-            shares={position.shares ?? null}
-            avgPrice={position.avgPrice ?? null}
-            avgFxRate={position.avgFxRate ?? null}
-            currency={nativeCurrency}
-            displayCurrency={displayCurrency}
-            conversionRate={currentFx}
-            onSave={(s, p, fx) => {
-              onUpdate(s, p, fx)
-              setEditing(false)
-            }}
-            onCancel={() => setEditing(false)}
-          />
-        )
-      })()}
+        <div ref={containerRef} className="flex-1 w-full h-full bg-[#09111e] relative min-h-[400px]" />
+      </div>
     </div>
   )
 }
@@ -1008,11 +1149,10 @@ export function SpanishTaxExportCalculator({
             return (
               <div
                 key={it.symbol}
-                className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
-                  isSelling
+                className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${isSelling
                     ? "bg-card border-primary/40 shadow-2xs"
                     : "bg-secondary/20 border-border/20 opacity-60"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1057,9 +1197,8 @@ export function SpanishTaxExportCalculator({
                     Venta: <strong className="text-foreground">{dispSym}{itemSaleCur.toLocaleString("es-ES", { maximumFractionDigits: 0 })}</strong>
                   </span>
                   <span
-                    className={`font-black tabular-nums ${
-                      itemSalePL >= 0 ? "text-positive" : "text-destructive"
-                    }`}
+                    className={`font-black tabular-nums ${itemSalePL >= 0 ? "text-positive" : "text-destructive"
+                      }`}
                   >
                     {itemSalePL >= 0 ? "+" : ""}{dispSym}{itemSalePL.toLocaleString("es-ES", { maximumFractionDigits: 0 })}
                   </span>
@@ -1084,9 +1223,8 @@ export function SpanishTaxExportCalculator({
         <div className="rounded-xl p-3 border bg-card border-border/40 flex flex-col justify-center">
           <span className="text-[10px] font-bold text-muted-foreground">Ganancia Patrimonial Bruta</span>
           <span
-            className={`text-lg font-black tabular-nums ${
-              totalGain >= 0 ? "text-positive" : "text-destructive"
-            }`}
+            className={`text-lg font-black tabular-nums ${totalGain >= 0 ? "text-positive" : "text-destructive"
+              }`}
           >
             {totalGain >= 0 ? "+" : ""}{dispSym}{totalGain.toLocaleString("es-ES", { maximumFractionDigits: 2 })}
           </span>
@@ -1116,7 +1254,8 @@ export function SpanishTaxExportCalculator({
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           body * {
             visibility: hidden;
@@ -1193,9 +1332,8 @@ export function SpanishTaxExportCalculator({
                         {dispSym}{saleInv.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td
-                        className={`py-2 px-3 text-right tabular-nums font-bold ${
-                          salePL >= 0 ? "text-positive" : "text-destructive"
-                        }`}
+                        className={`py-2 px-3 text-right tabular-nums font-bold ${salePL >= 0 ? "text-positive" : "text-destructive"
+                          }`}
                       >
                         {salePL >= 0 ? "+" : ""}{dispSym}{salePL.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
@@ -1347,11 +1485,10 @@ export function PriceAlertsMacroCalendar({ symbols }: { symbols: string[] }) {
                       </span>
                     )}
                     <span
-                      className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                        evt.impact === "HIGH"
+                      className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${evt.impact === "HIGH"
                           ? "bg-red-500/10 text-red-500 border-red-500/30"
                           : "bg-yellow-500/10 text-yellow-500 border-yellow-500/30"
-                      }`}
+                        }`}
                     >
                       {evt.impact === "HIGH" ? "🔴 ALTO" : "🟡 MEDIO"}
                     </span>
@@ -1403,14 +1540,14 @@ export function PriceAlertsMacroCalendar({ symbols }: { symbols: string[] }) {
             {earnings.map((item) => {
               const urgencyStyle =
                 item.urgency === "TODAY" ? "border-red-500/40 bg-red-500/5"
-                : item.urgency === "WEEK" ? "border-amber-500/40 bg-amber-500/5"
-                : item.urgency === "MONTH" ? "border-emerald-500/30 bg-emerald-500/5"
-                : "border-border/40 bg-secondary/20"
+                  : item.urgency === "WEEK" ? "border-amber-500/40 bg-amber-500/5"
+                    : item.urgency === "MONTH" ? "border-emerald-500/30 bg-emerald-500/5"
+                      : "border-border/40 bg-secondary/20"
               const urgencyBadge =
                 item.urgency === "TODAY" ? "🔴 HOY"
-                : item.urgency === "WEEK" ? "🟡 Esta semana"
-                : item.urgency === "MONTH" ? "🟢 Este mes"
-                : "🔵 Próximamente"
+                  : item.urgency === "WEEK" ? "🟡 Esta semana"
+                    : item.urgency === "MONTH" ? "🟢 Este mes"
+                      : "🔵 Próximamente"
 
               return (
                 <div key={item.symbol} className={`p-3 rounded-xl border transition-all flex flex-col gap-2 ${urgencyStyle}`}>
@@ -1459,7 +1596,7 @@ export function FinancialNewsTickerBar() {
 
   async function fetchNews() {
     try {
-      const res = await fetch("/api/news")
+      const res = await fetch("/api/news", { cache: "no-store" })
       const data = await res.json()
       if (Array.isArray(data.news) && data.news.length > 0) {
         setNews(data.news)
@@ -1488,37 +1625,132 @@ export function FinancialNewsTickerBar() {
 
   const displayNews = [...news, ...news]
 
+  const BADGE_STYLES: Record<string, string> = {
+    "🇺🇸 WALL STREET": "bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 font-black",
+    "🇪🇺 EUROPE / ECB": "bg-cyan-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 font-black",
+    "🌏 ASIA / GLOBAL": "bg-purple-500/15 border-purple-500/40 text-purple-600 dark:text-purple-400 font-black",
+    "📊 MACRO / CPI": "bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400 font-black",
+    "⚡ TECH / AI": "bg-violet-500/15 border-violet-500/40 text-violet-600 dark:text-violet-400 font-black",
+    "🥇 GOLD": "bg-amber-400/20 border-amber-400/50 text-amber-500 dark:text-amber-300 font-black shadow-xs",
+    "🛢️ COMMODITIES": "bg-yellow-600/15 border-yellow-600/40 text-yellow-600 dark:text-yellow-400 font-black",
+    "🪙 CRYPTO": "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-black",
+    "💼 BUSINESS / EARNINGS": "bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 font-black",
+    "🧠 TOP INVESTORS": "bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 font-black",
+    "📈 MARKETS": "bg-sky-500/15 border-sky-500/40 text-sky-600 dark:text-sky-400 font-black",
+  }
+
   function getCategoryBadgeStyle(cat: string) {
-    if (cat.includes("MACRO") || cat.includes("IPC")) {
-      return "bg-amber-500/15 border-amber-500/40 text-amber-500 font-extrabold"
+    return BADGE_STYLES[cat] || "bg-sky-500/15 border-sky-500/40 text-sky-600 dark:text-sky-400 font-black"
+  }
+
+  function renderCategoryIcon(cat: string) {
+    if (cat.includes("INVESTORS") || cat.includes("INVERSORES") || cat.includes("BUFFETT") || cat.includes("BURRY") || cat.includes("DALIO") || cat.includes("ZITRON")) {
+      return (
+        <span className="text-xs shrink-0" role="img" aria-label="Top Investors">
+          🧠
+        </span>
+      )
     }
-    if (cat.includes("EUROPA")) {
-      return "bg-cyan-500/15 border-cyan-500/40 text-cyan-400 font-extrabold"
+    if (cat.includes("WALL STREET") || cat.includes("USA") || cat.includes("US")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://flagcdn.com/us.svg"
+          alt="USA"
+          width={18}
+          height={13}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-[2px] object-cover shrink-0 shadow-2xs"
+        />
+      )
     }
-    if (cat.includes("USA")) {
-      return "bg-blue-500/15 border-blue-500/40 text-blue-400 font-extrabold"
+    if (cat.includes("EUROPE") || cat.includes("EUROPA") || cat.includes("ECB") || cat.includes("BCE")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://flagcdn.com/eu.svg"
+          alt="EU"
+          width={18}
+          height={13}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-[2px] object-cover shrink-0 shadow-2xs"
+        />
+      )
     }
-    if (cat.includes("ASIA")) {
-      return "bg-purple-500/15 border-purple-500/40 text-purple-400 font-extrabold"
+    if (cat.includes("ASIA") || cat.includes("GLOBAL")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://flagcdn.com/un.svg"
+          alt="Global"
+          width={18}
+          height={13}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-[2px] object-cover shrink-0 shadow-2xs"
+        />
+      )
     }
-    if (cat.includes("COMMODITIES") || cat.includes("ORO")) {
-      return "bg-amber-500/15 border-amber-500/40 text-amber-400 font-extrabold"
+    if (cat.includes("GOLD") || cat.includes("ORO")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://s3-symbol-logo.tradingview.com/metal/gold--big.svg"
+          alt="Gold"
+          width={15}
+          height={15}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-full object-cover shrink-0 bg-amber-400/20 p-0.5"
+        />
+      )
     }
-    if (cat.includes("CRIPTO")) {
-      return "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 font-extrabold"
+    if (cat.includes("COMMODITIES") || cat.includes("PETRÓLEO") || cat.includes("OIL") || cat.includes("ENERGY")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://s3-symbol-logo.tradingview.com/crude-oil--big.svg"
+          alt="Commodities"
+          width={15}
+          height={15}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-full object-cover shrink-0 bg-yellow-600/20 p-0.5"
+        />
+      )
     }
-    return "bg-secondary/80 border-border/40 text-foreground font-bold"
+    if (cat.includes("CRYPTO") || cat.includes("CRIPTO") || cat.includes("BITCOIN")) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://s3-symbol-logo.tradingview.com/crypto/XTVCBTC.svg"
+          alt="Crypto"
+          width={15}
+          height={15}
+          loading="lazy"
+          decoding="async"
+          className="inline-block rounded-full object-cover shrink-0 bg-emerald-500/20 p-0.5"
+        />
+      )
+    }
+    return null
+  }
+
+  function cleanCategoryText(cat: string) {
+    return cat.replace(/^[^\w\s/]+/, "").trim()
   }
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-2xl bg-gradient-to-r from-red-950/20 via-background to-emerald-950/20 border border-border/50 p-2.5 sm:px-3.5 sm:py-2.5 text-sm shadow-xs mb-4">
       <div className="flex items-center justify-between sm:justify-start shrink-0 border-b sm:border-b-0 border-border/20 pb-1.5 sm:pb-0">
-        <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md px-2.5 py-1 rounded-xl border border-red-500/40 text-red-500 font-black text-[11px] sm:text-xs shadow-2xs">
+        <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md px-2.5 py-1 rounded-xl border border-red-500/40 text-red-600 dark:text-red-400 font-black text-[11px] sm:text-xs shadow-2xs">
           <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-red-500"></span>
           </span>
-          <span className="tracking-wider uppercase">NOTICIAS 12H</span>
+          <span className="tracking-wider uppercase">MERCADOS GLOBALES · 12H</span>
         </div>
       </div>
 
@@ -1535,8 +1767,9 @@ export function FinancialNewsTickerBar() {
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-foreground hover:text-primary transition-colors cursor-pointer"
             >
-              <span className={`px-2 py-0.5 rounded-md text-[11px] sm:text-xs border uppercase ${getCategoryBadgeStyle(item.category)}`}>
-                {item.category}
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] border uppercase tracking-wider ${getCategoryBadgeStyle(item.category)}`}>
+                {renderCategoryIcon(item.category)}
+                <span>{cleanCategoryText(item.category)}</span>
               </span>
               <span className="font-bold text-xs sm:text-sm text-foreground hover:underline tracking-tight">
                 {item.title}

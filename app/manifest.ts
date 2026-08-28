@@ -1,0 +1,31 @@
+import type { MetadataRoute } from "next"
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "BudgetNext — Finanzas & Inversión",
+    short_name: "BudgetNext",
+    description: "Tu panel integral de finanzas personales, presupuestos, libertad financiera e inversión en tiempo real.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#16241d",
+    theme_color: "#c4e538",
+    orientation: "portrait-primary",
+    scope: "/",
+    lang: "es-ES",
+    categories: ["finance", "productivity", "business"],
+    icons: [
+      {
+        src: "/icon.svg",
+        sizes: "192x192 512x512",
+        type: "image/svg+xml",
+        purpose: "any",
+      },
+      {
+        src: "/icon.svg",
+        sizes: "192x192 512x512",
+        type: "image/svg+xml",
+        purpose: "maskable",
+      },
+    ],
+  }
+}

@@ -1,6 +1,6 @@
 import { getSummary, getProfileStats, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
-import { ProfileForm } from "@/components/finance/profile"
+import { ProfileForm } from "./profile"
 import { FinancialOverviewRatioChart, ExpenseCategoryProgressChart, YearSelector } from "@/components/finance/charts"
 
 export const dynamic = "force-dynamic"

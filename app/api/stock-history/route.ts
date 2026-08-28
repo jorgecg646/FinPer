@@ -9,6 +9,10 @@ interface MonthPoint {
   pct: number
 }
 
+// In-memory cache for historical monthly data (5 min TTL)
+const historyCache = new Map<string, { timestamp: number; data: MonthPoint[] }>()
+const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000
+
 export async function GET(req: NextRequest) {
   const symbolsParam = req.nextUrl.searchParams.get("symbols")
   if (!symbolsParam) {
@@ -16,15 +20,31 @@ export async function GET(req: NextRequest) {
   }
 
   const symbols = symbolsParam.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
+  const now = Date.now()
+  const results: Record<string, MonthPoint[]> = {}
+  const symbolsToFetch: string[] = []
+
+  for (const sym of symbols) {
+    const cached = historyCache.get(sym)
+    if (cached && now - cached.timestamp < HISTORY_CACHE_TTL_MS) {
+      results[sym] = cached.data
+    } else {
+      symbolsToFetch.push(sym)
+    }
+  }
+
+  if (symbolsToFetch.length === 0) {
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60" },
+    })
+  }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const TradingView = require("@mathieuc/tradingview")
     const client = new TradingView.Client()
 
-    const results: Record<string, MonthPoint[]> = {}
-
-    for (const symbol of symbols) {
+    for (const symbol of symbolsToFetch) {
       const points = await new Promise<MonthPoint[]>((resolve) => {
         const chart = new client.Session.Chart()
         chart.setMarket(symbol, { timeframe: "1M", range: 12 })
@@ -78,6 +98,9 @@ export async function GET(req: NextRequest) {
       })
 
       results[symbol] = points
+      if (points.length > 0) {
+        historyCache.set(symbol, { timestamp: now, data: points })
+      }
     }
 
     try { client.end() } catch { /* ignore */ }

@@ -8,6 +8,7 @@ import {
   YearSelector,
 } from "@/components/finance/charts"
 import { RecentTransactions } from "@/components/finance/transactions"
+import { ExpenseCalendarHeatmap } from "./expense-calendar"
 import { isInvestmentTx } from "@/lib/finance"
 import { TrendingDown } from "lucide-react"
 
@@ -67,6 +68,9 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
         {/* 3rd Section: Restantes gráficas */}
         <ExpenseCategoryProgressChart transactions={expenseTransactions} />
         <YearOverYearComparisonChart transactions={nonInvestmentTxs} selectedYear={selectedYear} />
+
+        {/* 4th Section: Interactive Expense Calendar & Subscriptions Heatmap (Minimizable) */}
+        <ExpenseCalendarHeatmap transactions={transactions} initialYear={selectedYear} />
       </div>
     </LayoutShell>
   )

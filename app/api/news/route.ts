@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server"
 
+export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export interface NewsItem {
   id: string
   title: string
   source: string
-  category: "📊 MACRO / IPC" | "🇺🇸 USA" | "🌏 ASIA" | "🥇 ORO" | "FED/BCE" | "🪙 CRIPTO" | "🇪🇺 EUROPA" | "EMPRESAS" | "MERCADOS" | "🛢️ COMMODITIES"
+  category:
+    | "🥇 GOLD"
+    | "🛢️ COMMODITIES"
+    | "🇺🇸 WALL STREET"
+    | "🇪🇺 EUROPE / ECB"
+    | "🌏 ASIA / GLOBAL"
+    | "📊 MACRO / CPI"
+    | "⚡ TECH / AI"
+    | "🪙 CRYPTO"
+    | "💼 BUSINESS / EARNINGS"
+    | "🧠 TOP INVESTORS"
+    | "📈 MARKETS"
   timeAgo: string
   url: string
   pubTime: number
@@ -14,346 +27,171 @@ export interface NewsItem {
 
 function cleanNewsTitle(title: string): string {
   return title
-    .replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/<[^>]*>/g, "")
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/\s*\([a-zA-Z0-9_-]{8,15}\)\s*$/g, "")
-    .replace(/ - [^-]+$/, "") // remove trailing source name
-    .replace(/^De cara a hoy:\s*/i, "")
-    .replace(/^a hoy:\s*/i, "")
-    .replace(/^Claves:\s*/i, "")
-    .replace(/^Agenda:\s*/i, "")
+    .replace(/ - (CNBC|[^-]+)$/i, "")
+    .replace(/ \| CNBC$/i, "")
+    .replace(/^(De cara a hoy|Claves):\s*/i, "")
     .trim()
 }
 
-function isSpamOrLowQualityTitle(title: string): boolean {
-  const lower = title.toLowerCase()
-
-  // Filter out raw data dumps, watch/ad promotions, clickbait & SEO spam templates
-  if (
-    lower.includes("|precio:") ||
-    lower.includes("variación %:") ||
-    lower.includes("variacion %:") ||
-    lower.includes("precio de acciones, noticias, cotización") ||
-    lower.includes("cotización e historial") ||
-    lower.includes("a cuánto cotiza este") ||
-    lower.includes("a cuanto cotiza este") ||
-    lower.includes("moonswatch") ||
-    lower.includes("apolo 11") ||
-    lower.includes("gemstone") ||
-    lower.includes("lanza la aplicación") ||
-    lower.includes("lanza la aplicacion") ||
-    lower.includes("merecen atención") ||
-    lower.includes("merecen un análisis") ||
-    lower.includes("análisis de mercados 13 de agosto") ||
-    lower.includes("claves y agenda económica del día")
-  ) {
-    return true
-  }
-
-  // Reject raw ticker dumps with multiple pipes e.g. "XAUUSD|Oro|Precio..."
-  if ((title.match(/\|/g) || []).length >= 2) {
-    return true
-  }
-
-  return false
+function formatRelativeTime(pubTime: number, now: number): { timeAgo: string; hoursDiff: number } {
+  const diffMs = now - pubTime
+  const hoursDiff = diffMs / (1000 * 60 * 60)
+  const minsDiff = Math.max(1, Math.floor(Math.abs(diffMs) / (1000 * 60)))
+  const formattedTime = new Date(pubTime).toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  })
+  
+  const timeAgo = minsDiff < 60 ? `hace ${minsDiff} min (${formattedTime})` : `hace ${Math.floor(minsDiff / 60)}h (${formattedTime})`
+  return { timeAgo, hoursDiff }
 }
 
-function isFinancialTitle(title: string): boolean {
-  const lower = title.toLowerCase()
+const STRICT_MAX_HOURS = 12 // STRICT 12-HOUR CUTOFF ACROSS ALL CATEGORIES
 
-  // Non-financial topics to reject immediately
-  const rejectWords = [
-    "muere", "fallece", "monje", "iglesia", "religión", "religioso", "océano", "oceano",
-    "lengua de metal", "submarino", "volcán", "volcan", "terremoto", "fútbol", "futbol",
-    "partido", "liga", "champions", "programa de graduados", "beca", "oferta de empleo",
-    "curiosidades", "ciencia", "descubren", "descubrimiento", "fantasía", "película"
-  ]
+const CATEGORY_FEEDS: { category: NewsItem["category"]; url: string; source: string }[] = [
+  // 1. news.finance() -> Wall Street & Markets
+  { category: "🇺🇸 WALL STREET",        url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664", source: "CNBC Finance" },
+  // 2. news.economy() & central_banks() -> Economy & Fed/Rates
+  { category: "📊 MACRO / CPI",          url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258", source: "CNBC Economy" },
+  // 3. news.technology() & cnbc_disruptors() -> Tech / AI
+  { category: "⚡ TECH / AI",             url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910", source: "CNBC Tech" },
+  // 4. news.business() -> Corporate / Earnings
+  { category: "💼 BUSINESS / EARNINGS",  url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135", source: "CNBC Business" },
+  // 5. news.energy() -> Energy & Commodities
+  { category: "🛢️ COMMODITIES",          url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19836768", source: "CNBC Energy" },
+  // 6. news.europe_politics() -> Europe, ECB, Ibex, DAX
+  { category: "🇪🇺 EUROPE / ECB",         url: `https://news.google.com/rss/search?q=${encodeURIComponent("Ibex 35 OR BCE Lagarde OR Dax Alemania OR Eurozona inflacion when:12h")}&hl=es&gl=ES&ceid=ES:es`, source: "Europe Markets" },
+  // 7. news.asia_politics() -> Asia, Tokyo, China
+  { category: "🌏 ASIA / GLOBAL",        url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19832390", source: "CNBC Asia" },
+  // 8. Dedicated GOLD Feed (Precious Metals)
+  { category: "🥇 GOLD",                 url: `https://news.google.com/rss/search?q=${encodeURIComponent("Oro XAUUSD precio OR 'Gold price' OR 'cotización oro' when:12h")}&hl=es&gl=ES&ceid=ES:es`, source: "Gold Markets" },
+  // 9. Dedicated CRYPTO Feed
+  { category: "🪙 CRYPTO",               url: `https://news.google.com/rss/search?q=${encodeURIComponent("Bitcoin precio OR Ethereum ETF spot criptoactivos when:12h")}&hl=es&gl=ES&ceid=ES:es`, source: "Crypto Markets" },
+  // 10. Dedicated TOP INVESTORS Feed (Buffett, Burry, Dalio, Wood, Ackman, Zitron, Druckenmiller - Strictly Last 12h)
+  {
+    category: "🧠 TOP INVESTORS",
+    url: "https://news.google.com/rss/search?q=Buffett+OR+Burry+OR+Dalio+OR+Zitron+OR+Ackman+OR+%22Cathie+Wood%22+OR+Druckenmiller+when:1d&hl=en-US&gl=US&ceid=US:en",
+    source: "Top Investors US",
+  },
+  {
+    category: "🧠 TOP INVESTORS",
+    url: `https://news.google.com/rss/search?q=${encodeURIComponent("Buffett OR Burry OR Dalio OR Zitron OR Ackman OR 'Cathie Wood' when:1d")}&hl=es&gl=ES&ceid=ES:es`,
+    source: "Grandes Inversores",
+  },
+]
 
-  for (const word of rejectWords) {
-    if (lower.includes(word)) return false
+let cachedNews: { timestamp: number; news: NewsItem[] } | null = null
+const NEWS_CACHE_TTL = 90 * 1000 // 90 seconds cache
+
+function parseItemsFromXml(xml: string, defaultCategory: NewsItem["category"], source: string, now: number): NewsItem[] {
+  const blocks = xml.split(/<item[\s>]/i).slice(1)
+  const items: NewsItem[] = []
+
+  for (const block of blocks.slice(0, 10)) {
+    const rawTitle = block.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || ""
+    const link = (block.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim()
+    const pubDateStr = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] || ""
+
+    // Discard any item with invalid or missing pubDate
+    if (!pubDateStr) continue
+
+    const parsed = new Date(pubDateStr.trim()).getTime()
+    if (isNaN(parsed)) continue
+
+    const { timeAgo, hoursDiff } = formatRelativeTime(parsed, now)
+
+    // MANDATORY STRICT 12-HOUR CUTOFF (Discard anything > 12.0h or future invalid dates)
+    if (hoursDiff > STRICT_MAX_HOURS || hoursDiff < -2) {
+      continue
+    }
+
+    if (/\([a-zA-Z0-9]{8,15}\)/i.test(rawTitle) || /secuestrado|alunicero/i.test(rawTitle)) continue
+
+    let title = cleanNewsTitle(rawTitle)
+    if (source === "Ed Zitron" && !title.toLowerCase().includes("ed zitron")) {
+      title = `Ed Zitron: ${title}`
+    }
+    if (title.length < 14 || !link.startsWith("http")) continue
+
+    let category = defaultCategory
+    const lower = ` ${title.toLowerCase()} `
+
+    // Detect Top Investors mentions with highest priority
+    if (/buffett|michael burry|burry|ray dalio|dalio|ed zitron|zitron|bill ackman|ackman|cathie wood|druckenmiller|munger|howard marks/i.test(title)) {
+      category = "🧠 TOP INVESTORS"
+    } else if (lower.includes("oro") || lower.includes("gold") || lower.includes("xauusd")) {
+      category = "🥇 GOLD"
+    } else if (lower.includes("bitcoin") || lower.includes("cripto") || lower.includes("crypto") || lower.includes("ethereum")) {
+      category = "🪙 CRYPTO"
+    } else if (/iceland|greenland|europa|europe|bce|ecb|lagarde|ibex|\beu\b|ukraine|russia|germany|france|italy/i.test(title)) {
+      category = "🇪🇺 EUROPE / ECB"
+    } else if (/treasury|yield|wall street|warsh|powell|fed\b/i.test(title)) {
+      category = "🇺🇸 WALL STREET"
+    }
+
+    items.push({
+      id: `mkt-${items.length}-${parsed}`,
+      title,
+      source,
+      category,
+      timeAgo,
+      url: link,
+      pubTime: parsed,
+    })
   }
 
-  // Must contain at least one economic/financial indicator or market voice
-  const financialKeywords = [
-    "bolsa", "acciones", "mercado", "cotización", "cotizacion", "precio", "dólar", "dolar",
-    "euro", "yen", "yuan", "ipc", "cpi", "inflación", "inflacion", "pib", "fed", "bce",
-    "tipos", "interés", "interes", "oro", "gold", "petróleo", "petroleo", "crudo", "wall street",
-    "nasdaq", "s&p", "ibex", "dax", "nikkei", "hang seng", "inversión", "inversion", "inversores",
-    "banca", "banco", "empresa", "resultados", "beneficio", "ingresos", "arancel", "deuda",
-    "bonos", "cripto", "bitcoin", "ethereum", "tecnológicas", "tecnologicas", "ia", "semiconductores",
-    "dalio", "dimon", "zitron", "buffett", "burry", "cathie wood", "jpmorgan", "bridgewater"
-  ]
-
-  return financialKeywords.some((kw) => lower.includes(kw))
+  return items
 }
-
-let cachedNewsData: { timestamp: number; news: NewsItem[] } | null = null
-const NEWS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 export async function GET() {
+  const now = Date.now()
+
+  if (cachedNews && now - cachedNews.timestamp < NEWS_CACHE_TTL && cachedNews.news.length > 0) {
+    return NextResponse.json(
+      { news: cachedNews.news },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    )
+  }
+
   try {
-    const now = Date.now()
-
-    if (cachedNewsData && now - cachedNewsData.timestamp < NEWS_CACHE_TTL && cachedNewsData.news.length > 0) {
-      return NextResponse.json({ news: cachedNewsData.news })
-    }
-
-    // Strictly financial live RSS queries for Europa, Asia, USA, Gold, Commodities, Crypto, Market Voices
-    const europeQuery = encodeURIComponent("Bolsa Europa OR Ibex 35 OR BCE Eurozona OR Dax Alemania when:12h")
-    const asiaQuery = encodeURIComponent("Bolsa Nikkei OR Bolsa China OR economia Japon OR mercado Yen OR acciones Asia when:12h")
-    const usaQuery = encodeURIComponent("Wall Street OR Nasdaq OR SP500 OR Fed inflacion when:12h")
-    const goldQuery = encodeURIComponent("precio Oro OR cotizacion Oro Gold XAUUSD when:12h")
-    const commoditiesQuery = encodeURIComponent("cotizacion Plata OR Petroleo Brent OR Gas Natural OR precio Cobre OR Litio when:12h")
-    const cryptoQuery = encodeURIComponent("cotizacion Bitcoin OR cotizacion Cripto OR Ethereum when:12h")
-    const voicesEsQuery = encodeURIComponent('"Ray Dalio" OR "Jamie Dimon" OR "Warren Buffett" OR "Michael Burry" OR "Ed Zitron" OR "Cathie Wood" when:24h')
-    const voicesEnQuery = encodeURIComponent('"Ray Dalio" OR "Jamie Dimon" OR "Warren Buffett" OR "Michael Burry" OR "Cathie Wood" when:24h')
-    const zitronQuery = encodeURIComponent('"Ed Zitron" OR "Where\'s Your Ed At"')
-
-    const [resEurope, resAsia, resUsa, resGold, resCommodities, resCrypto, resVoicesEs, resVoicesEn, resZitron] = await Promise.all([
-      fetch(`https://news.google.com/rss/search?q=${europeQuery}&hl=es&gl=ES&ceid=ES:es`, {
+    const feedPromises = CATEGORY_FEEDS.map((f) =>
+      fetch(f.url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
         cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${asiaQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${usaQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${goldQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${commoditiesQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${cryptoQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${voicesEsQuery}&hl=es&gl=ES&ceid=ES:es`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${voicesEnQuery}&hl=en-US&gl=US&ceid=US:en`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(`https://news.google.com/rss/search?q=${zitronQuery}&hl=en-US&gl=US&ceid=US:en`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-        cache: "no-store",
-      }).catch(() => null),
-    ])
-
-    const fetchedItems: NewsItem[] = []
-
-    function parseXmlFeed(xmlText: string, defaultCategory: NewsItem["category"] = "MERCADOS", maxHours = 36) {
-      const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>/g
-      let match: RegExpExecArray | null
-
-      let count = 0
-      while ((match = itemRegex.exec(xmlText)) !== null && count < 12) {
-        const rawTitle = match[1]
-        const link = match[2].trim()
-        const pubDateStr = match[3] ? match[3].trim() : ""
-
-        let timeAgo = "reciente"
-        let pubTime = now
-        if (pubDateStr) {
-          const parsedTime = new Date(pubDateStr).getTime()
-          if (!isNaN(parsedTime)) {
-            pubTime = parsedTime
-            const diffMs = now - pubTime
-            const hoursDiff = diffMs / (1000 * 60 * 60)
-
-            if (hoursDiff > maxHours || hoursDiff < -2) {
-              continue // Discard anything older than maxHours
-            }
-
-            const pubDateObj = new Date(pubTime)
-            const formattedTime = pubDateObj.toLocaleTimeString("es-ES", {
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "Europe/Madrid",
-            })
-
-            const minsDiff = Math.max(1, Math.floor(Math.abs(diffMs) / (1000 * 60)))
-            if (minsDiff < 60) {
-              timeAgo = `hace ${minsDiff} min (${formattedTime})`
-            } else {
-              const hrs = Math.floor(minsDiff / 60)
-              timeAgo = `hace ${hrs}h (${formattedTime})`
-            }
-          }
-        }
-
-        const title = cleanNewsTitle(rawTitle)
-        if (title.length < 15 || isSpamOrLowQualityTitle(title) || !isFinancialTitle(title)) continue
-
-        let category: NewsItem["category"] = defaultCategory
-        const lower = title.toLowerCase()
-
-        if (lower.includes("oro") || lower.includes("gold") || lower.includes("xau")) {
-          category = "🥇 ORO"
-        } else if (defaultCategory === "🛢️ COMMODITIES") {
-          category = "🛢️ COMMODITIES"
-        } else if (defaultCategory === "🌏 ASIA") {
-          category = "🌏 ASIA"
-        } else if (defaultCategory === "🇪🇺 EUROPA") {
-          category = "🇪🇺 EUROPA"
-        } else if (
-          lower.includes("plata") ||
-          lower.includes("silver") ||
-          lower.includes("petróleo") ||
-          lower.includes("petroleo") ||
-          lower.includes("crudo") ||
-          lower.includes("brent") ||
-          lower.includes("wti") ||
-          lower.includes("gas natural") ||
-          lower.includes("cobre") ||
-          lower.includes("litio") ||
-          lower.includes("uranio")
-        ) {
-          category = "🛢️ COMMODITIES"
-        } else if (
-          lower.includes("asia") ||
-          lower.includes("nikkei") ||
-          lower.includes("tokio") ||
-          lower.includes("china") ||
-          lower.includes("chino") ||
-          lower.includes("pekín") ||
-          lower.includes("pekin") ||
-          lower.includes("hang seng") ||
-          lower.includes("japón") ||
-          lower.includes("japon") ||
-          lower.includes("yen") ||
-          lower.includes("taiwan")
-        ) {
-          category = "🌏 ASIA"
-        } else if (
-          lower.includes("europa") ||
-          lower.includes("eurozona") ||
-          lower.includes("españa") ||
-          lower.includes("espana") ||
-          lower.includes("ibex") ||
-          lower.includes("dax") ||
-          lower.includes("alemania") ||
-          lower.includes("francia") ||
-          lower.includes("bce") ||
-          lower.includes("reino unido")
-        ) {
-          category = "🇪🇺 EUROPA"
-        } else if (
-          lower.includes("usa") ||
-          lower.includes("eeuu") ||
-          lower.includes("wall street") ||
-          lower.includes("s&p") ||
-          lower.includes("nasdaq") ||
-          lower.includes("fed") ||
-          lower.includes("dólar") ||
-          lower.includes("dalio") ||
-          lower.includes("dimon") ||
-          lower.includes("zitron") ||
-          lower.includes("buffett") ||
-          lower.includes("burry") ||
-          lower.includes("cathie wood") ||
-          lower.includes("jpmorgan") ||
-          lower.includes("bridgewater")
-        ) {
-          category = "🇺🇸 USA"
-        } else if (
-          lower.includes("ipc") ||
-          lower.includes("cpi") ||
-          lower.includes("inflación") ||
-          lower.includes("inflacion") ||
-          lower.includes("empleo") ||
-          lower.includes("nfp") ||
-          lower.includes("pib")
-        ) {
-          category = "📊 MACRO / IPC"
-        } else if (lower.includes("bitcoin") || lower.includes("cripto") || lower.includes("ethereum")) {
-          category = "🪙 CRIPTO"
-        }
-
-        fetchedItems.push({
-          id: `live-news-${fetchedItems.length}-${now}`,
-          title,
-          source: "En Directo",
-          category,
-          timeAgo,
-          url: link,
-          pubTime,
-        })
-        count++
-      }
-    }
-
-    if (resGold && resGold.ok) {
-      const xmlGold = await resGold.text()
-      parseXmlFeed(xmlGold, "🥇 ORO")
-    }
-
-    if (resAsia && resAsia.ok) {
-      const xmlAsia = await resAsia.text()
-      parseXmlFeed(xmlAsia, "🌏 ASIA")
-    }
-
-    if (resEurope && resEurope.ok) {
-      const xmlEurope = await resEurope.text()
-      parseXmlFeed(xmlEurope, "🇪🇺 EUROPA")
-    }
-
-    if (resUsa && resUsa.ok) {
-      const xmlUsa = await resUsa.text()
-      parseXmlFeed(xmlUsa, "🇺🇸 USA")
-    }
-
-    if (resCommodities && resCommodities.ok) {
-      const xmlCommodities = await resCommodities.text()
-      parseXmlFeed(xmlCommodities, "🛢️ COMMODITIES")
-    }
-
-    if (resCrypto && resCrypto.ok) {
-      const xmlCrypto = await resCrypto.text()
-      parseXmlFeed(xmlCrypto, "🪙 CRIPTO")
-    }
-
-    if (resVoicesEs && resVoicesEs.ok) {
-      const xmlVoicesEs = await resVoicesEs.text()
-      parseXmlFeed(xmlVoicesEs, "🇺🇸 USA")
-    }
-
-    if (resVoicesEn && resVoicesEn.ok) {
-      const xmlVoicesEn = await resVoicesEn.text()
-      parseXmlFeed(xmlVoicesEn, "🇺🇸 USA")
-    }
-
-    if (resZitron && resZitron.ok) {
-      const xmlZitron = await resZitron.text()
-      parseXmlFeed(xmlZitron, "🇺🇸 USA", 48)
-    }
-
-    // Deduplicate items by title
-    const uniqueNews = fetchedItems.filter(
-      (item, index, self) => index === self.findIndex((t) => t.title === item.title)
+        signal: AbortSignal.timeout(4500),
+      })
+        .then((res) => (res.ok ? res.text() : null))
+        .then((xml) => (xml ? parseItemsFromXml(xml, f.category, f.source, now) : []))
+        .catch(() => [])
     )
 
-    // Sort items strictly chronologically (newest first)
-    uniqueNews.sort((a, b) => b.pubTime - a.pubTime)
+    const nested = await Promise.all(feedPromises)
+    const all = nested.flat()
 
-    if (uniqueNews.length > 0) {
-      cachedNewsData = { timestamp: now, news: uniqueNews }
-    }
+    // Deduplicate & sort newest first
+    const unique = all
+      .filter((item, idx, arr) => idx === arr.findIndex((t) => t.title.toLowerCase() === item.title.toLowerCase()))
+      .sort((a, b) => b.pubTime - a.pubTime)
 
-    return NextResponse.json({ news: uniqueNews })
+    if (unique.length > 0) cachedNews = { timestamp: now, news: unique }
+
+    return NextResponse.json(
+      { news: unique },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    )
   } catch {
-    if (cachedNewsData && cachedNewsData.news.length > 0) {
-      return NextResponse.json({ news: cachedNewsData.news })
-    }
-    return NextResponse.json({ news: [] })
+    return NextResponse.json(
+      { news: cachedNews?.news ?? [] },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    )
   }
 }
-

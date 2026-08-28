@@ -6,7 +6,6 @@ import { useState, useEffect } from "react"
 import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, Calculator, Sun, Moon, TrendingUp } from "lucide-react"
 import { loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
-import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav items shared by Sidebar and MobileNav

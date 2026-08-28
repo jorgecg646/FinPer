@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useTransition } from "react"
+import nextDynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { BarChart2, Plus, Minus, Wallet } from "lucide-react"
 import { upsertStockPosition, deleteStockPosition } from "@/app/actions"
@@ -9,17 +10,30 @@ import { CURRENCIES, CURRENCY_SYMBOLS, DISPLAY_CURRENCY_KEY, arcPath, getFxPair 
 import {
   TickerCard,
   AddSymbolModal,
-  SpanishTaxExportCalculator,
-  PriceAlertsMacroCalendar,
   FinancialNewsTickerBar,
 } from "./stock-widgets"
 import {
   ASSET_COLORS,
   CompoundGrowthChart,
   IndexComparisonChart,
-  TradingViewAdvancedWidget,
-  SectorRiskAnalysis,
 } from "./stock-charts"
+
+const TradingViewAdvancedWidget = nextDynamic(
+  () => import("./stock-charts").then((mod) => mod.TradingViewAdvancedWidget),
+  { ssr: false, loading: () => <div className="h-64 rounded-2xl bg-secondary/30 animate-pulse" /> }
+)
+const SpanishTaxExportCalculator = nextDynamic(
+  () => import("./stock-widgets").then((mod) => mod.SpanishTaxExportCalculator),
+  { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
+)
+const PriceAlertsMacroCalendar = nextDynamic(
+  () => import("./stock-widgets").then((mod) => mod.PriceAlertsMacroCalendar),
+  { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
+)
+const SectorRiskAnalysis = nextDynamic(
+  () => import("./stock-charts").then((mod) => mod.SectorRiskAnalysis),
+  { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
+)
 
 function PLBar({ isGain, pct, minPct = 4 }: { isGain: boolean; pct: number; minPct?: number }) {
   return (

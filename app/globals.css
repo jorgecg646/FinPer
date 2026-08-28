@@ -176,7 +176,9 @@
 .animate-marquee {
   display: flex;
   width: max-content;
-  animation: marquee 720s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  animation: marquee 200s linear infinite;
 }
 
 .animate-marquee:hover {

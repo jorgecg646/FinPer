@@ -5,11 +5,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 interface QuoteData {
-  /** Last price */
   lp?: number
-  /** Change */
   ch?: number
-  /** Change percent */
   chp?: number
   high_price?: number
   low_price?: number
@@ -20,9 +17,30 @@ interface QuoteData {
   short_name?: string
   currency_code?: string
   exchange?: string
-  /** Logo identifier — used to build https://s3-symbol-logo.tradingview.com/{logoid}--big.svg */
   logoid?: string
 }
+
+export interface StockPriceResult {
+  symbol: string
+  name: string
+  price: number
+  change: number
+  changePercent: number
+  ytdChangePercent: number
+  high: number
+  low: number
+  open: number
+  prevClose: number
+  volume: number
+  currency: string
+  exchange: string
+  timestamp: number
+  logoid: string
+}
+
+// In-memory cache for live stock quotes (30s TTL)
+const priceCache = new Map<string, { timestamp: number; data: StockPriceResult }>()
+const CACHE_TTL_MS = 30_000
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.trim().toUpperCase()
@@ -31,28 +49,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Symbol is required" }, { status: 400 })
   }
 
+  const now = Date.now()
+  const cached = priceCache.get(symbol)
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return NextResponse.json(cached.data, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
+    })
+  }
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const TradingView = require("@mathieuc/tradingview")
     const client = new TradingView.Client()
 
-    const result = await new Promise<{
-      symbol: string
-      name: string
-      price: number
-      change: number
-      changePercent: number
-      ytdChangePercent: number
-      high: number
-      low: number
-      open: number
-      prevClose: number
-      volume: number
-      currency: string
-      exchange: string
-      timestamp: number
-      logoid: string
-    }>((resolve, reject) => {
+    const result = await new Promise<StockPriceResult>((resolve, reject) => {
       const timeout = setTimeout(() => {
         try { client.end() } catch { /* ignore */ }
         reject(new Error("Timeout fetching price for " + symbol))
@@ -134,14 +144,16 @@ export async function GET(req: NextRequest) {
       /* ignore */
     }
 
-    const finalResult = {
+    const finalResult: StockPriceResult = {
       ...result,
       ytdChangePercent: perfYtd !== 0 ? perfYtd : result.changePercent,
     }
 
+    priceCache.set(symbol, { timestamp: now, data: finalResult })
+
     return NextResponse.json(finalResult, {
       headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
       },
     })
   } catch (err) {
@@ -149,4 +161,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-

@@ -1,7 +1,7 @@
 import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import { YearSelector } from "@/components/finance/charts"
-import { BudgetsAndGoalsManager } from "@/components/finance/budgets-goals"
+import { BudgetsAndGoalsManager } from "./budgets-goals"
 import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
 
 export const dynamic = "force-dynamic"
