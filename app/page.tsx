@@ -1,6 +1,6 @@
 import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
-import { Topbar, BalanceCard, StatCards } from "@/components/finance/dashboard"
+import { Topbar, BalanceCard, StatCards, InvestmentBalanceBanner } from "@/components/finance/dashboard"
 import { RecentTransactions } from "@/components/finance/transactions"
 import {
   FinancialOverviewRatioChart,
@@ -42,6 +42,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ y
         {/* Left/Main Column */}
         <div className="flex flex-col gap-6 xl:col-span-2">
           <BalanceCard balance={summary.balance} monthly={summary.monthly} year={selectedYear} />
+
+          {/* Investment portfolio live snapshot */}
+          <InvestmentBalanceBanner cashBalance={summary.balance} />
 
           {/* 2nd position: Movimientos */}
           <RecentTransactions transactions={transactions} />

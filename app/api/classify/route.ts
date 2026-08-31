@@ -134,33 +134,63 @@ function fallbackName(raw: string): string {
   const low = raw.toLowerCase()
 
   if (/devoluci[oó]n|reembolso|refund/.test(low)) return "Devolución"
+  if (/trading\s*212/.test(low)) return "Trading 212"
+  if (/trade\s*republic/.test(low)) return "Trade Republic"
+  if (/myinvestor/.test(low)) return "MyInvestor"
+  if (/degiro/.test(low)) return "Degiro"
   if (/amazon/.test(low)) return "Amazon"
+  if (/zalando/.test(low)) return "Zalando"
+  if (/hawkers/.test(low)) return "Hawkers"
+  if (/hsn/.test(low)) return "HSN Store"
+  if (/silbon/.test(low)) return "Silbon"
+  if (/alvaro moreno|álvaro moreno/.test(low)) return "Álvaro Moreno"
   if (/mercadona/.test(low)) return "Mercadona"
   if (/carrefour/.test(low)) return "Carrefour"
+  if (/\bdia\b/.test(low)) return "DIA"
+  if (/lidl/.test(low)) return "Lidl"
+  if (/aldi/.test(low)) return "Aldi"
+  if (/decathlon/.test(low)) return "Decathlon"
   if (/mcdonald|mc donald/.test(low)) return "McDonald's"
+  if (/burger king/.test(low)) return "Burger King"
+  if (/uber\s*eats/.test(low)) return "Uber Eats"
+  if (/just\s*eat/.test(low)) return "Just Eat"
+  if (/glovo/.test(low)) return "Glovo"
+  if (/100\s*montaditos/.test(low)) return "100 Montaditos"
   if (/zara/.test(low)) return "Zara"
   if (/netflix/.test(low)) return "Netflix"
   if (/spotify/.test(low)) return "Spotify"
   if (/paypal/.test(low)) return "PayPal"
+  if (/casa del libro/.test(low)) return "Casa del Libro"
+  if (/sierra\s*nevada/.test(low)) return "Sierra Nevada"
+  if (/busbud/.test(low)) return "Busbud"
+  if (/cooltra/.test(low)) return "Cooltra"
+  if (/wallapop/.test(low)) return "Wallapop"
+
   if (/bizum/i.test(raw)) {
     // Try to extract "CONCEPTO" (colon optional: "CONCEPTO: X" or "CONCEPTO X")
     const conceptMatch = raw.match(/CONCEPTO\s*:?\s*(.+?)(?:\s{2,}|$)/i)
     if (conceptMatch?.[1]?.trim()) {
       const concept = conceptMatch[1].trim()
-      return `Bizum ${concept.charAt(0).toUpperCase() + concept.slice(1).toLowerCase()}`
+      return `Bizum ${concept.charAt(0).toUpperCase() + concept.slice(1)}`
     }
     // Try to extract person name after "DE " or "A FAVOR DE "
     const personMatch = raw.match(/(?:A FAVOR DE|DE)\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{1,30}?)(?:\s+CONCEPTO|\s{2,}|$)/i)
     if (personMatch?.[1]?.trim()) {
       const firstName = personMatch[1].trim().split(/\s+/)[0]
-      return `Bizum ${firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()}`
+      return `Bizum ${firstName.charAt(0).toUpperCase() + firstName.slice(1)}`
     }
-    return "Bizum Ocio"
+    // If raw is already "Bizum <something>", preserve the actual text
+    const directMatch = raw.match(/^bizum\s+(.+)$/i)
+    if (directMatch?.[1]?.trim()) {
+      const rest = directMatch[1].trim()
+      return `Bizum ${rest.charAt(0).toUpperCase() + rest.slice(1)}`
+    }
+    return raw.trim() || "Bizum"
   }
   if (/transferencia/.test(low)) return "Transferencia"
   if (/nomina|n[oó]mina|sueldo|salario/.test(low)) return "Nómina"
 
-  // Extract meaningful words
+  // Extract meaningful words without stripping short numbers like 212
   const cleaned = raw
     .replace(/[ï]/g, "'")
     .replace(/(?:TRANSACCION\s*CONTACTLESS|PAGO\s*MOVIL|COMPRA\s*INTERNET|COMPRA)\s*(?:EN)?/gi, " ")
@@ -170,7 +200,7 @@ function fallbackName(raw: string): string {
     .replace(/\s+/g, " ")
     .trim()
 
-  const words = cleaned.split(" ").filter((w) => w.length > 2 && !/^\d+$/.test(w))
+  const words = cleaned.split(" ").filter((w) => w.length >= 2 && !/^\d{5,}$/.test(w))
   if (words.length > 0) {
     return words.slice(0, 3).join(" ")
   }
@@ -182,208 +212,161 @@ function fallbackName(raw: string): string {
 // Gemini classifier — processes items in batches
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function classifyWithGemini(
+// In-memory runtime cache: key = "type:normalized_raw" -> { name, category }
+const classificationCache = new Map<string, { name: string; category: string }>()
+
+export async function classifyWithGemini(
   items: ClassifyInput[],
   apiKey: string
 ): Promise<ClassifyResult[]> {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
-
-  const BATCH_SIZE = 50 // process up to 50 items per single API call
-  const INTER_BATCH_DELAY_MS = 0 // no artificial delay
-  const MAX_RETRIES = 1
-  const results: ClassifyResult[] = []
-
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-  function getRetryAfterMs(err: unknown): number {
-    try {
-      const msg = String((err as Error).message ?? "")
-      const m = msg.match(/retryDelay[":\s]+"?(\d+)/)
-      if (m) {
-        const secs = parseInt(m[1], 10)
-        // If quota retry is longer than 3 seconds, don't block the request for a minute!
-        if (secs <= 3) return secs * 1000
-      }
-    } catch {}
-    return 0 // fail fast if long wait required
-  }
-
-  // ── 1. Pre-classify and deduplicate items ─────────────────────────────────
-  const AMBIGUOUS_CATEGORIES = new Set(["General", "Otros ingresos"])
-
-  function needsAI(item: ClassifyInput): boolean {
-    const cat = fallbackCategory(item.raw, item.type)
-    if (/bizum/i.test(item.raw)) return true
-    return AMBIGUOUS_CATEGORIES.has(cat)
-  }
-
-  // Result map by item ID
+  const BATCH_SIZE = 30
   const resultMap = new Map<string, ClassifyResult>()
   const itemsNeedingAI: ClassifyInput[] = []
+  const normKeyToItemIds = new Map<string, string[]>()
 
-  // Pre-classify non-ambiguous items with regex
-  for (const item of items) {
-    if (!needsAI(item)) {
-      resultMap.set(item.id, {
-        id: item.id,
-        name: fallbackName(item.raw),
-        category: fallbackCategory(item.raw, item.type),
-        aiClassified: false,
-      })
-    } else {
-      itemsNeedingAI.push(item)
-    }
+  // ── 1. Check in-memory cache & Smart Pre-filter ─────────────────────────
+  const AMBIGUOUS_CATEGORIES = new Set(["General", "Otros ingresos"])
+
+  function isAmbiguous(item: ClassifyInput): boolean {
+    if (/bizum/i.test(item.raw)) return true
+    const fallbackCat = fallbackCategory(item.raw, item.type)
+    return AMBIGUOUS_CATEGORIES.has(fallbackCat)
   }
 
-  // Deduplicate items needing AI by normalized raw description
-  const uniqueAiInputs: ClassifyInput[] = []
-  const normRawToItemIds = new Map<string, string[]>()
-
-  for (const item of itemsNeedingAI) {
+  for (const item of items) {
     const norm = item.raw.trim().toLowerCase()
-    if (!normRawToItemIds.has(norm)) {
-      normRawToItemIds.set(norm, [])
-      uniqueAiInputs.push(item)
+    const cacheKey = `${item.type}:${norm}`
+
+    // Check memory cache
+    if (classificationCache.has(cacheKey)) {
+      const cached = classificationCache.get(cacheKey)!
+      resultMap.set(item.id, {
+        id: item.id,
+        name: cached.name,
+        category: cached.category,
+        aiClassified: true,
+      })
+      continue
     }
-    normRawToItemIds.get(norm)!.push(item.id)
+
+    // If it's a clear, non-ambiguous merchant (e.g. Mercadona, Amazon, Zara, Trading 212),
+    // resolve immediately to avoid wasting API quota and hitting rate limits
+    if (!isAmbiguous(item)) {
+      const name = fallbackName(item.raw)
+      const category = fallbackCategory(item.raw, item.type)
+      classificationCache.set(cacheKey, { name, category })
+      resultMap.set(item.id, {
+        id: item.id,
+        name,
+        category,
+        aiClassified: true,
+      })
+      continue
+    }
+
+    // Group remaining genuinely ambiguous / Bizum items
+    if (!normKeyToItemIds.has(cacheKey)) {
+      normKeyToItemIds.set(cacheKey, [])
+      itemsNeedingAI.push(item)
+    }
+    normKeyToItemIds.get(cacheKey)!.push(item.id)
   }
 
   console.log(
-    `[classify] Total: ${items.length} | Pre-classified by Regex: ${resultMap.size} | Sent to Gemini: ${uniqueAiInputs.length} (deduped from ${itemsNeedingAI.length})`
+    `[classify] Total items: ${items.length} | Resolved instantly: ${resultMap.size} | Sent to Gemini AI: ${itemsNeedingAI.length}`
   )
 
-  // If no items need AI, return immediately
-  if (uniqueAiInputs.length > 0) {
-    for (let i = 0; i < uniqueAiInputs.length; i += BATCH_SIZE) {
-      const batch = uniqueAiInputs.slice(i, i + BATCH_SIZE)
+  // ── 2. Call Gemini only for genuinely ambiguous items in parallel ────────
+  if (itemsNeedingAI.length > 0) {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey)
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+          maxOutputTokens: 4096,
+          // @ts-ignore - disables thinking delay
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      })
+
+      const batches: ClassifyInput[][] = []
+      for (let i = 0; i < itemsNeedingAI.length; i += BATCH_SIZE) {
+        batches.push(itemsNeedingAI.slice(i, i + BATCH_SIZE))
+      }
 
       const incomeList = INCOME_CATEGORIES.join(", ")
       const expenseList = EXPENSE_CATEGORIES.join(", ")
 
-      const prompt = `Eres un asistente financiero español experto en clasificar extractos bancarios.
+      await Promise.all(
+        batches.map(async (batch) => {
+          const prompt = `Actúa como clasificador financiero bancario para España.
+Categorías válidas GASTOS: ${expenseList}
+Categorías válidas INGRESOS: ${incomeList}
 
-Recibirás descripciones de movimientos bancarios en bruto (texto que aparece en los extractos del banco español).
-Para cada transacción debes extraer:
-- "name": nombre limpio, breve y reconocible del comercio o concepto (máx 35 caracteres, en español)
-- "category": categoría correcta según el tipo (ingreso o gasto)
+Reglas:
+- "name": Nombre limpio y conciso del comercio o concepto (máx 30 caracteres). Ej: "Mercadona", "Zara", "Nómina", "Trading 212".
+- Para Bizum: name = "Bizum " + concepto. La categoría DEBE deducirse del concepto (ej: comida/cena/cerveza/kebab/tapas -> Restaurantes; piso/luz/agua/alquiler -> Vivienda; bus/tren/metro -> Transporte; gym/padel/esquí -> Deporte; reyes/cumple -> Regalo; compras/super -> Supermercado; fiesta/cine/copas -> Ocio).
+- Para comercios: Zalando/Hawkers/Silbon -> Ropa; HSN/Decathlon -> Deporte/Salud; Amazon -> Tecnología/Hogar; Cine -> Ocio; Wallapop -> Tecnología/General.
+- Responde ÚNICAMENTE un array JSON: [{"id":"...","name":"...","category":"..."}]
 
-Categorías válidas para INGRESOS: ${incomeList}
-Categorías válidas para GASTOS: ${expenseList}
+Lista (id|tipo|descripcion):
+${batch.map((t) => `${t.id}|${t.type === "income" ? "ingreso" : "gasto"}|${t.raw.replace(/[\r\n|]/g, " ").trim()}`).join("\n")}`
 
-Referencia rápida de comercios españoles y su categoría (muéstrate liberal con variantes del nombre):
-Transporte: Cooltra, Acciona (moto/patinete), TIER, Muving, Lime, Bird, Voi, Dott, BiciMad, Bicing, Valenbisi, Free Now, Cabify, Uber, Bolt, Renfe, Cercanías, Metro, EMT, Flixbus, ALSA, Avanza, Busbud, Iryo, Ouigo, BlaBlaCar, Repsol, BP, Galp, Cepsa, peaje, Via T
-Suscripciones: Netflix, Spotify, HBO Max, Disney+, Amazon Prime, Apple One, Twitch, Audible, DAZN, Paramount+, Filmin, Xbox Game Pass, PlayStation Plus
-Supermercado: Mercadona, Carrefour, Lidl, Aldi, DIA, Eroski, Hipercor, Alcampo, Consum, Ahorramas, Spar, Froiz
-Restaurantes: McDonald's, Burger King, KFC, Telepizza, Domino's, Just Eat, Glovo, Uber Eats, Starbucks, Five Guys, VIPS, Goiko, Foster's Hollywood
-Salud: farmacia, Sanitas, Adeslas, Asisa, Mapfre Salud, Vithas, Quirón
-Deporte: Decathlon, Basic-Fit, McFit, GO fit, Holmes Place, Metropolitan, padel, tenis, Sierra Nevada, Cetursa, Rentalmotion, Monachil, esquí, ski, forfait
-Viajes: vueling, Ryanair, Iberia, easyJet, Wizz Air, Booking, Airbnb, Europcar, Hertz, Avis, Sixt
-Ropa: Zara, H&M, Mango, Bershka, Pull&Bear, Stradivarius, Primark, Shein, Silbon, Álvaro Moreno, Massimo Dutti
-Inversiones: Trading 212, Degiro, MyInvestor, Trade Republic, eToro, Indexa Capital, Finizens, Binance
-Vivienda: Endesa, Iberdrola, Naturgy, Vodafone, Movistar, Orange, Yoigo, MasMovil, Jazztel
-Tecnología: Amazon (hardware/software), Apple Store, Google Play, Microsoft, Steam, PlayStation Store
+          try {
+            const result = await model.generateContent(prompt)
+            const text = result.response.text().trim()
+            const cleaned = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim()
+            const parsed: { id: string; name: string; category: string }[] = JSON.parse(cleaned)
 
-Ejemplo de extracción del nombre:
-- Ignora códigos, números de tarjeta, fechas, localizaciones y texto genérico bancario (COMPRA EN, PAGO CONTACTLESS, TARJETA *XXXX, etc.)
-- Extrae el nombre del comercio real: "COMPRA EN AMAZON MARKETPLACE" → "Amazon"
-- Para Bizum: el name SIEMPRE debe ser "Bizum " + concepto extraído. El concepto aparece después de la palabra "CONCEPTO" (con o sin dos puntos). Ejemplos reales: "BIZUM A FAVOR DE JORGE SILLERO MANCHON CONCEPTO: bus" → "Bizum Bus", "BIZUM DE ANA BELEN GORDILLO NARANJO CONCEPTO Funda móvil" → "Bizum Funda móvil", "BIZUM DE JAVIER ALDANA HERNANDEZ CONCEPTO Nochvieja" → "Bizum Nochvieja", "BIZUM DE MARIA CONCEPTO: CENA" → "Bizum Cena", "BIZUM A JUAN" → "Bizum Juan", "BIZUM SIN CONCEPTO" → "Bizum Ocio"
-- Para Bizum (categoría): analiza el concepto extraído para inferir la categoría correcta. NUNCA uses "Otros ingresos" para Bizum aunque sea ingreso — la categoría SIEMPRE debe basarse en el concepto. Para Bizum puedes usar cualquier categoría (Vivienda, Restaurantes, Transporte, Ocio, Salud, etc.) independientemente de si es ingreso o gasto. Ejemplos:
-  · "comida", "cena", "almuerzo", "desayuno", "pizza", "tapas", "cerveza", "caña", "kebab", "sushi", "bar" → Restaurantes
-  · "supermercado", "mercadona", "compra", "fruta", "verdura" → Supermercado
-  · "bus", "metro", "taxi", "gasolina", "uber", "tren", "avión", "peaje", "busbud" → Transporte
-  · "médico", "farmacia", "dentista", "pastillas" → Salud
-  · "gym", "padel", "tenis", "deporte", "decathlon", "sierra nevada", "cetursa", "rentalmotion", "monachil", "esquí", "ski", "forfait" → Deporte
-  · "reyes", "regalo" → Regalos
-  · "libro", "curso", "academia" → Educación
-  · "cubata", "copa", "discoteca", "nochevieja", "fiesta", "concierto", "cine", "teatro", "betis", "fútbol", "partido" → Ocio
-  · "alquiler", "piso", "habitación", "cuarto", "casa", "local", "garaje", "renta", "luz", "agua", "internet" → Vivienda
-  · Si el concepto es ambiguo, contiene mezcla de cosas, no lo puedes inferir, o el Bizum no tiene concepto claro → Ocio (NUNCA "Otros ingresos" para Bizum)
-- Para nóminas/salarios: "Nómina" o "Nómina [empresa si aparece]"
-- Para devoluciones/reembolsos: name="Devolución [comercio o concepto si aparece]" (ej: "DEVOLUCION AMAZON" → name="Devolución Amazon", "REEMBOLSO NETFLIX" → name="Devolución Netflix", "DEVOLUCION COMPRA" sin comercio → name="Devolución"), category="Reembolso"
-- Para inversiones (Trading 212, Degiro, MyInvestor, Trade Republic, etc.): category="Inversiones"
-- Para transferencias sin más info: "Transferencia"
-- El nombre debe ser corto y reconocible (ej: "Mercadona", "Netflix", "Repsol", "Amazon", "Nómina")
-- Si no puedes determinar la categoría exacta, usa "General" para gastos u "Otros ingresos" para ingresos
+            for (const parsedItem of parsed) {
+              const original = batch.find((b) => b.id === parsedItem.id)
+              if (!original) continue
 
-Devuelve ÚNICAMENTE un array JSON válido, sin markdown, sin texto adicional. Formato exacto:
-[{"id":"1","name":"Mercadona","category":"Supermercado"},{"id":"2","name":"Nómina","category":"Salario"}]
+              const norm = original.raw.trim().toLowerCase()
+              const cacheKey = `${original.type}:${norm}`
+              const targetIds = normKeyToItemIds.get(cacheKey) || [original.id]
 
-Movimientos a clasificar (campo "descripcion" es el texto original del banco):
-${batch.map((t) => `{"id":"${t.id}","descripcion":"${t.raw.replace(/"/g, "'").replace(/\n/g, " ").trim()}","tipo":"${t.type === "income" ? "ingreso" : "gasto"}"}`).join("\n")}
-`
+              const validCats = original.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+              const category = validCats.includes(parsedItem.category)
+                ? parsedItem.category
+                : fallbackCategory(original.raw, original.type)
 
-      if (i > 0) await sleep(INTER_BATCH_DELAY_MS)
+              const finalName = parsedItem.name?.trim() || fallbackName(original.raw)
 
-      let lastErr: unknown = null
-      let success = false
+              // Save to memory cache for future requests
+              classificationCache.set(cacheKey, { name: finalName, category })
 
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          if (attempt > 0) {
-            const waitMs = getRetryAfterMs(lastErr)
-            if (waitMs <= 0) {
-              console.warn("[classify] Rate limit hit with long wait, failing fast to regex fallback")
-              break
+              for (const targetId of targetIds) {
+                resultMap.set(targetId, {
+                  id: targetId,
+                  name: finalName,
+                  category,
+                  aiClassified: true,
+                })
+              }
             }
-            console.warn(`[classify] Rate limit hit, retrying in ${waitMs / 1000}s (attempt ${attempt}/${MAX_RETRIES})`)
-            await sleep(waitMs)
-          }
-
-          const result = await model.generateContent(prompt)
-          const text = result.response.text().trim()
-
-          const cleaned = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim()
-          const parsed: { id: string; name: string; category: string }[] = JSON.parse(cleaned)
-
-          for (const item of parsed) {
-            const original = batch.find((b) => b.id === item.id)
-            if (!original) continue
-
-            const norm = original.raw.trim().toLowerCase()
-            const targetIds = normRawToItemIds.get(norm) || [original.id]
-
-            const validCats = original.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
-            const category = validCats.includes(item.category)
-              ? item.category
-              : fallbackCategory(original.raw, original.type)
-
-            const finalName = item.name?.trim() || fallbackName(original.raw)
-
-            for (const targetId of targetIds) {
-              resultMap.set(targetId, {
-                id: targetId,
-                name: finalName,
-                category,
-                aiClassified: true,
-              })
+          } catch (batchErr) {
+            console.warn("[classify] Gemini batch error (falling back to regex):", batchErr)
+            for (const item of batch) {
+              const norm = item.raw.trim().toLowerCase()
+              const cacheKey = `${item.type}:${norm}`
+              const targetIds = normKeyToItemIds.get(cacheKey) || [item.id]
+              for (const targetId of targetIds) {
+                resultMap.set(targetId, {
+                  id: targetId,
+                  name: fallbackName(item.raw),
+                  category: fallbackCategory(item.raw, item.type),
+                  aiClassified: false,
+                })
+              }
             }
           }
-
-          success = true
-          break
-        } catch (err) {
-          lastErr = err
-          const isRateLimit = String((err as Error).message ?? "").includes("429")
-          if (!isRateLimit || attempt === MAX_RETRIES) break
-        }
-      }
-
-      if (!success) {
-        console.error("[classify] Gemini batch failed, using fallback for batch:", lastErr)
-        for (const item of batch) {
-          const norm = item.raw.trim().toLowerCase()
-          const targetIds = normRawToItemIds.get(norm) || [item.id]
-          for (const targetId of targetIds) {
-            resultMap.set(targetId, {
-              id: targetId,
-              name: fallbackName(item.raw),
-              category: fallbackCategory(item.raw, item.type),
-              aiClassified: false,
-            })
-          }
-        }
-      }
+        })
+      )
+    } catch (err) {
+      console.error("[classify] Gemini init error:", err)
     }
   }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { Eye, EyeOff, TrendingUp, TrendingDown, Bell, X, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react"
+import { Eye, EyeOff, TrendingUp, TrendingDown, Bell, X, CheckCircle, AlertTriangle, ShieldCheck, Wallet, ChevronRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import type { Summary } from "@/app/actions"
 import { loadLocalProfile } from "@/lib/profile"
@@ -184,6 +184,137 @@ function StatCard({ label, amount, positive }: { label: string; amount: number; 
       <p className={`mt-1 text-xs font-medium ${positive ? "text-positive" : "text-destructive"}`}>
         {positive ? "Total ingresado" : "Total gastado"}
       </p>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InvestmentBalanceBanner — reads live portfolio snapshot from localStorage
+// and shows capital + P&L + net worth on the main dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PortfolioSnapshot = {
+  invested: number
+  current: number
+  pl: number
+  plPct: number
+  currency: string
+  updatedAt: number
+}
+
+const SNAPSHOT_KEY = "finper_portfolio_snapshot"
+
+function readSnapshot(): PortfolioSnapshot | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY)
+    return raw ? (JSON.parse(raw) as PortfolioSnapshot) : null
+  } catch {
+    return null
+  }
+}
+
+export function InvestmentBalanceBanner({ cashBalance }: { cashBalance: number }) {
+  const [snap, setSnap] = useState<PortfolioSnapshot | null>(null)
+
+  useEffect(() => {
+    function load() {
+      setSnap(readSnapshot())
+    }
+    load()
+    window.addEventListener("portfolio-snapshot-updated", load)
+    window.addEventListener("storage", load)
+    return () => {
+      window.removeEventListener("portfolio-snapshot-updated", load)
+      window.removeEventListener("storage", load)
+    }
+  }, [])
+
+  if (!snap || snap.current <= 0) return null
+
+  const isGain = snap.pl >= 0
+  const netWorth = cashBalance + snap.current
+  const sym = snap.currency === "EUR" ? "€" : snap.currency === "USD" ? "$" : snap.currency
+
+  function fmt(n: number) {
+    return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  return (
+    <section
+      className={`relative overflow-hidden rounded-3xl border p-5 shadow-sm transition-all ${isGain
+        ? "bg-positive/5 border-positive/20"
+        : "bg-destructive/5 border-destructive/20"
+        }`}
+    >
+      {/* Background glow */}
+      <div
+        className={`pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-10 blur-2xl ${isGain ? "bg-positive" : "bg-destructive"
+          }`}
+      />
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${isGain ? "bg-positive/15 text-positive" : "bg-destructive/15 text-destructive"
+            }`}>
+            <Wallet className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Cartera de inversión</p>
+            <p className="text-sm font-bold text-foreground">Valor en tiempo real</p>
+          </div>
+        </div>
+        <a
+          href="/inversiones"
+          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Ver inversiones"
+        >
+          Ver detalle
+          <ChevronRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Capital invertido */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Capital Invertido</span>
+          <span className="text-sm font-black text-foreground tabular-nums">
+            {sym}{fmt(snap.invested)}
+          </span>
+        </div>
+
+        {/* Valor actual */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Valor actual</span>
+          <span className="text-sm font-black text-foreground tabular-nums">
+            {sym}{fmt(snap.current)}
+          </span>
+        </div>
+
+        {/* P&L */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Rentabilidad Total</span>
+          <span className={`text-sm font-black tabular-nums ${isGain ? "text-positive" : "text-destructive"}`}>
+            {isGain ? "+" : ""}{sym}{fmt(snap.pl)}
+          </span>
+          <span className={`text-[10px] font-bold ${isGain ? "text-positive" : "text-destructive"}`}>
+            ({isGain ? "+" : ""}{snap.plPct.toFixed(2)}%)
+          </span>
+        </div>
+      </div>
+
+      {/* Patrimonio neto total */}
+      <div className="mt-4 flex items-center justify-between rounded-2xl bg-background/70 border border-border/40 px-4 py-3">
+        <span className="text-xs font-bold text-muted-foreground">Patrimonio neto total</span>
+        <span className="text-base font-black text-foreground tabular-nums">
+          {sym}{fmt(netWorth)}
+          <span className="ml-1.5 text-[10px] font-semibold text-muted-foreground">
+            (flujo {cashBalance >= 0 ? "+" : ""}{sym}{fmt(cashBalance)} · cartera {sym}{fmt(snap.current)})
+          </span>
+        </span>
+      </div>
     </section>
   )
 }

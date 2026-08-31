@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { ClassifyInput, ClassifyResult } from "@/app/api/classify/route"
+import { classifyWithGemini, type ClassifyInput, type ClassifyResult } from "@/app/api/classify/route"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -90,14 +90,27 @@ function detectType(line: string, description: string, hasExplicitSign: boolean,
 
   const l = (line + " " + description).toLowerCase()
 
-  if (/\bdevoluci[oó]n\b|\breembolso\b|bizum\s+de\b|\babono\b|\bhaber\b|n[oó]mina|sueldo|salario|transferencia\s+recibida/.test(l)) {
+  // Clear income signals
+  if (
+    /\bdevoluci[oó]n\b|\breembolso\b|\babono\b|\bhaber\b/.test(l) ||
+    /n[oó]mina|sueldo|salario|paga\s+extra/.test(l) ||
+    /transferencia\s+recibida|ingreso\s+transferencia/.test(l) ||
+    /bizum\s+de\b|bizum\s+recibido/.test(l) ||
+    /\bingreso\b/.test(l)
+  ) {
     return "income"
   }
 
-  if (/\bcompra\b|\bpago\b|\btransaccion\b|\btransferencia\s+a\b|bizum\s+a\b|\bcargo\b|\bdebe\b|comisi[oó]n/.test(l)) {
+  // Clear expense signals
+  if (
+    /\bcompra\b|\bpago\b|\btransaccion\b/.test(l) ||
+    /transferencia\s+(emitida|a\b|enviada)/.test(l) ||
+    /bizum\s+a\b|\bcargo\b|\bdebe\b|comisi[oó]n/.test(l)
+  ) {
     return "expense"
   }
 
+  // Default: expenses are much more common than income entries
   return "expense"
 }
 
@@ -136,7 +149,7 @@ function cleanDescription(raw: string): string {
   if (/paypal/.test(low)) return "PayPal"
 
   if (/bizum/.test(low)) {
-    if (/sin concepto/i.test(s)) return "Bizum Ocio"
+    if (/sin concepto/i.test(s)) return "Bizum"
 
     const bizumConcept = s.match(/CONCEPTO\s*:?\s*(.+)$/i)?.[1]?.trim()
     if (bizumConcept) {
@@ -145,7 +158,7 @@ function cleanDescription(raw: string): string {
         .replace(/\s+/g, " ")
         .trim()
 
-      if (clean) return `Bizum ${clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase()}`
+      if (clean) return `Bizum ${clean.charAt(0).toUpperCase() + clean.slice(1)}`
     }
 
     const personMatch = s.match(/bizum\s+(?:de|a favor de)\s+(.+?)(?:\s+concepto|$)/i)
@@ -153,7 +166,14 @@ function cleanDescription(raw: string): string {
       return `Bizum ${personMatch[1].replace(/\s+/g, " ").trim()}`
     }
 
-    return "Bizum Ocio"
+    // If s is already "Bizum <something>", preserve the actual text
+    const directMatch = s.match(/^bizum\s+(.+)$/i)
+    if (directMatch?.[1]?.trim()) {
+      const rest = directMatch[1].trim()
+      return `Bizum ${rest.charAt(0).toUpperCase() + rest.slice(1)}`
+    }
+
+    return s.trim() || "Bizum"
   }
 
   if (/transferencia/.test(low)) return "Transferencia"
@@ -169,7 +189,7 @@ function cleanDescription(raw: string): string {
     .replace(/\s+/g, " ")
     .trim()
 
-  const words = s.split(" ").filter((w) => w.length > 2 && !/^\d+$/.test(w))
+  const words = s.split(" ").filter((w) => w.length >= 2 && !/^\d{5,}$/.test(w))
   if (words.length > 0) {
     return words.slice(0, 3).join(" ")
   }
@@ -225,6 +245,8 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     if (!amountRaw.trim()) continue
 
     const explicitNegative = amountRaw.includes("-")
+    const explicitPositive = amountRaw.includes("+")
+    const hasExplicitSign = explicitNegative || explicitPositive
     const amount = parseEuAmount(amountRaw.replace(/[+\-]/g, ""))
     if (!Number.isFinite(amount) || amount <= 0) continue
 
@@ -242,10 +264,10 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
       } else if (/ingreso|income/.test(typeRaw)) {
         type = "income"
       } else {
-        type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
+        type = detectType(conceptRaw, description, hasExplicitSign, explicitNegative ? -1 : 1)
       }
     } else {
-      type = detectType(conceptRaw, description, true, explicitNegative ? -1 : 1)
+      type = detectType(conceptRaw, description, hasExplicitSign, explicitNegative ? -1 : 1)
     }
 
     const category = isDevolucion ? "Reembolso" : (categoryRaw || autoCategory(`${conceptRaw} ${description}`, type))
@@ -333,27 +355,17 @@ export async function POST(req: NextRequest) {
           type: t.type,
         }))
 
-        // Call the classify endpoint internally (server-to-server)
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
-          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+        const results = await classifyWithGemini(classifyItems, apiKey)
+        const resultMap = new Map(results.map((r) => [r.id, r]))
 
-        const classifyRes = await fetch(`${baseUrl}/api/classify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: classifyItems }),
-        })
-
-        if (classifyRes.ok) {
-          const { results }: { results: ClassifyResult[] } = await classifyRes.json()
-          const resultMap = new Map(results.map((r) => [r.id, r]))
-
-          for (const tx of transactions) {
-            const classified = resultMap.get(tx.id)
-            if (classified) {
-              tx.name = classified.name
+        for (const tx of transactions) {
+          const classified = resultMap.get(tx.id)
+          if (classified) {
+            tx.name = classified.name
+            if (!tx.category || tx.category === "General" || tx.category === "Otros ingresos") {
               tx.category = classified.category
-              tx.aiClassified = classified.aiClassified
             }
+            tx.aiClassified = classified.aiClassified
           }
         }
       }

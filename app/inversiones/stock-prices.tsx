@@ -529,6 +529,27 @@ export function StockPricesPanel({ initialPositions }: { initialPositions: Stock
   const isPLPositive = totalPL >= 0
   const dispSym = CURRENCY_SYMBOLS[displayCurrency] ?? displayCurrency
 
+  // Persist snapshot for the main dashboard balance banner
+  useEffect(() => {
+    if (portfolioSummary.count === 0) return
+    try {
+      localStorage.setItem(
+        "finper_portfolio_snapshot",
+        JSON.stringify({
+          invested: portfolioSummary.invested,
+          current: portfolioSummary.current,
+          pl: totalPL,
+          plPct: totalPLPct,
+          currency: displayCurrency,
+          updatedAt: Date.now(),
+        })
+      )
+      window.dispatchEvent(new Event("portfolio-snapshot-updated"))
+    } catch {
+      // ignore
+    }
+  }, [portfolioSummary.invested, portfolioSummary.current, portfolioSummary.count, totalPL, totalPLPct, displayCurrency])
+
   return (
     <section className="rounded-3xl bg-card p-4 sm:p-5 shadow-sm border border-border/50">
       <FinancialNewsTickerBar />

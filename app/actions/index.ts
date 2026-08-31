@@ -230,9 +230,17 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
     }
   }
 
+  // Investment categories are capital transfers — they don't count as income or expense
+  const INVESTMENT_CAT = /invers|trading|broker|myinvestor|trade republic|crypto|cripto|acciones|fondos|etf|bitcoin|binance|degiro|bolsa|patrimonio/i
+
+  function isInvestmentRow(t: Tx): boolean {
+    return INVESTMENT_CAT.test(t.category) || INVESTMENT_CAT.test(t.name)
+  }
+
   let income = 0
   let expenses = 0
   for (const t of txs) {
+    if (isInvestmentRow(t)) continue // skip capital transfers
     const d = new Date(t.occurredAt)
     if (d.getFullYear() === selectedYear) {
       if (t.type === "income") income += t.amount
@@ -248,6 +256,7 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
   const byKey = new Map(buckets.map((b) => [b.key, b]))
 
   for (const t of txs) {
+    if (isInvestmentRow(t)) continue // skip capital transfers
     const d = new Date(t.occurredAt)
     if (d.getFullYear() === selectedYear) {
       const bucket = byKey.get(`${selectedYear}-${d.getMonth()}`)
