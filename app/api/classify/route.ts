@@ -113,9 +113,9 @@ function fallbackCategory(raw: string, type: "income" | "expense"): string {
   if (/trading\s*212|degiro|myinvestor|trade\s*republic|ibkr|interactive\s*brokers|inversi[oó]n|bolsa|cripto|binance|coinbase|etoro|finizens|indexa/.test(n)) return "Inversiones"
 
   // Vivienda
-  if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|agua\b|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra|jazztel|m[aá]smovil/.test(n)) return "Vivienda"
+  if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|seguro vivienda|agua\b|aguas|emasesa|aqualia|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|totalenergies|holaluz|curenergia|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra|jazztel|m[aá]smovil|digi\b|pepephone|lowi|o2\b|simyo|piso\b|casa\b|facturas?\s*piso|gastos?\s*piso|facturas?|suministros|recibo\s*(?:luz|agua|gas|piso|comunidad)|butano|ikea|leroy\s*merlin|bricomart|obramat|bauhaus|conforama/.test(n)) return "Vivienda"
 
-  // Bizum — siempre Ocio cuando no hay categoría más específica (antes del bloque income)
+  // Bizum — si no encaja en ninguna categoría específica (Vivienda, Restaurantes, Supermercado, etc.)
   if (/bizum/i.test(n)) return "Ocio"
 
   if (type === "income") {
@@ -130,10 +130,44 @@ function fallbackCategory(raw: string, type: "income" | "expense"): string {
   return "General"
 }
 
+function extractRefundMerchant(raw: string): string {
+  const low = raw.toLowerCase()
+  if (/amazon/.test(low)) return "Devolución Amazon"
+  if (/zara/.test(low)) return "Devolución Zara"
+  if (/zalando/.test(low)) return "Devolución Zalando"
+  if (/shein/.test(low)) return "Devolución Shein"
+  if (/aliexpress/.test(low)) return "Devolución AliExpress"
+  if (/pccomponentes/.test(low)) return "Devolución PcComponentes"
+  if (/el corte ingles|el corte ingl[eé]s/.test(low)) return "Devolución El Corte Inglés"
+  if (/decathlon/.test(low)) return "Devolución Decathlon"
+  if (/nike/.test(low)) return "Devolución Nike"
+  if (/apple/.test(low)) return "Devolución Apple"
+  if (/paypal/.test(low)) return "Devolución PayPal"
+  if (/uber\s*eats/.test(low)) return "Devolución Uber Eats"
+  if (/glovo/.test(low)) return "Devolución Glovo"
+  if (/just\s*eat/.test(low)) return "Devolución Just Eat"
+  if (/mercadona/.test(low)) return "Devolución Mercadona"
+  if (/carrefour/.test(low)) return "Devolución Carrefour"
+
+  const cleaned = raw
+    .replace(/(?:devoluci[oó]n|reembolso|refund)\s*(?:compra\s*(?:en\s*)?)?/gi, " ")
+    .replace(/(?:www\.)/gi, " ")
+    .replace(/[,;*]/g, " ")
+    .replace(/\.com|\.es|\.org/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  const firstWord = cleaned.split(" ").filter((w) => w.length >= 2 && !/^\d+$/.test(w))[0]
+  if (firstWord) {
+    return `Devolución ${firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase()}`
+  }
+  return "Devolución"
+}
+
 function fallbackName(raw: string): string {
   const low = raw.toLowerCase()
 
-  if (/devoluci[oó]n|reembolso|refund/.test(low)) return "Devolución"
+  if (/devoluci[oó]n|reembolso|refund/.test(low)) return extractRefundMerchant(raw)
   if (/trading\s*212/.test(low)) return "Trading 212"
   if (/trade\s*republic/.test(low)) return "Trade Republic"
   if (/myinvestor/.test(low)) return "MyInvestor"
@@ -306,8 +340,16 @@ Categorías válidas GASTOS: ${expenseList}
 Categorías válidas INGRESOS: ${incomeList}
 
 Reglas:
-- "name": Nombre limpio y conciso del comercio o concepto (máx 30 caracteres). Ej: "Mercadona", "Zara", "Nómina", "Trading 212".
-- Para Bizum: name = "Bizum " + concepto. La categoría DEBE deducirse del concepto (ej: comida/cena/cerveza/kebab/tapas -> Restaurantes; piso/luz/agua/alquiler -> Vivienda; bus/tren/metro -> Transporte; gym/padel/esquí -> Deporte; reyes/cumple -> Regalo; compras/super -> Supermercado; fiesta/cine/copas -> Ocio).
+- Para Bizum: name = "Bizum " + concepto. La categoría DEBE deducirse del concepto y contexto:
+  * Facturas, piso, gastos piso, alquiler, luz, agua, gas, internet, wifi, comunidad, suministros, casa -> Vivienda (NUNCA Ocio).
+  * Comida, cena, cerveza, tapas, kebab, burger, café, desayuno, restaurante, bar, vermut -> Restaurantes.
+  * Supermercado, compra semanal, compra piso, mercadona -> Supermercado.
+  * Bus, tren, metro, gasolina, viaje coche, peaje, blablacar -> Transporte.
+  * Padel, gym, gimnasio, fútbol, esquí, forfait -> Deporte.
+  * Regalo, reyes, cumple, boda -> Regalo.
+  * Fiesta, discoteca, cine, concierto, festival, entradas, copas -> Ocio.
+  * Si es solo el nombre de una persona sin concepto (ej: "Bizum Juan") -> Ocio.
+- Para Devoluciones o Reembolsos: name = "Devolución " + comercio (ej: "Devolución Amazon", "Devolución Zara", "Devolución Shein"). Categoría = "Reembolso".
 - Para comercios: Zalando/Hawkers/Silbon -> Ropa; HSN/Decathlon -> Deporte/Salud; Amazon -> Tecnología/Hogar; Cine -> Ocio; Wallapop -> Tecnología/General.
 - Responde ÚNICAMENTE un array JSON: [{"id":"...","name":"...","category":"..."}]
 

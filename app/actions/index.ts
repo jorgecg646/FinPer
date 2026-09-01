@@ -143,8 +143,7 @@ export type ProfileStats = {
 function toTx(row: typeof transactions.$inferSelect): Tx {
   let name = row.name
   let category = row.category
-  if (/devoluci[oó]n|reembolso|refund/i.test(name) || /devoluci[oó]n|reembolso/i.test(category)) {
-    name = "Devolución"
+  if (/devoluci[oó]n|reembolso|refund/i.test(category)) {
     category = "Reembolso"
   }
   return {
@@ -163,8 +162,7 @@ function validate(input: TxInput) {
   const type: TxType = input.type === "income" ? "income" : "expense"
   const amount = Math.abs(Number(input.amount))
 
-  if ((name && /devoluci[oó]n|reembolso|refund/i.test(name)) || (category && /devoluci[oó]n|reembolso/i.test(category))) {
-    name = "Devolución"
+  if (/devoluci[oó]n|reembolso|refund/i.test(category)) {
     category = "Reembolso"
   }
 

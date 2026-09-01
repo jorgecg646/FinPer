@@ -67,7 +67,7 @@ function autoCategory(name: string, type: "income" | "expense"): string {
   if (/universidad|colegio|academia|libro|curso|udemy|coursera/.test(n)) return "Educación"
   if (/zara|h&m|inditex|mango|pull and bear|stradivarius|bershka|primark|shein|asos|álvaro moreno|alvaro moreno|silbon|nike|adidas|puma/.test(n)) return "Ropa"
   if (/trading\s*212|degiro|myinvestor|trade\s*republic|ibkr|interactive\s*brokers|inversi[oó]n|bolsa|cripto|binance|coinbase/.test(n)) return "Inversiones"
-  if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|agua\b|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra/.test(n)) return "Vivienda"
+  if (/alquiler|hipoteca|comunidad|ibi|seguro hogar|seguro vivienda|agua\b|aguas|luz\b|gas\b|electricidad|endesa|iberdrola|naturgy|totalenergies|holaluz|internet|tel[eé]fono|vodafone|movistar|orange|yoigo|masmovil|fibra|jazztel|digi\b|pepephone|lowi|o2\b|piso\b|casa\b|facturas?\s*piso|gastos?\s*piso|facturas?|suministros|recibo\s*(?:luz|agua|gas|piso|comunidad)|butano|ikea|leroy|obramat|bricomart/.test(n)) return "Vivienda"
 
   if (type === "income") {
     if (/nomina|sueldo|salario|n[oó]mina/.test(n)) return "Salario"
@@ -123,11 +123,28 @@ function cleanDescription(raw: string): string {
   const low = s.toLowerCase()
 
   if (/devoluci[oó]n|reembolso|refund/i.test(low)) {
-    // Try to extract the merchant name after the refund keyword
-    const merchantMatch = s.match(/(?:devoluci[oó]n|reembolso|refund)\s+(?:compra\s+en\s+|de\s+)?([A-Za-zÁÉÍÓÚáéíóúÑñ0-9&'.\-]{2,})/i)
-    if (merchantMatch?.[1]) {
-      const merchant = merchantMatch[1].trim()
-      return `Devolución ${merchant.charAt(0).toUpperCase() + merchant.slice(1).toLowerCase()}`
+    if (/amazon/.test(low)) return "Devolución Amazon"
+    if (/zara/.test(low)) return "Devolución Zara"
+    if (/zalando/.test(low)) return "Devolución Zalando"
+    if (/shein/.test(low)) return "Devolución Shein"
+    if (/aliexpress/.test(low)) return "Devolución AliExpress"
+    if (/pccomponentes/.test(low)) return "Devolución PcComponentes"
+    if (/decathlon/.test(low)) return "Devolución Decathlon"
+    if (/nike/.test(low)) return "Devolución Nike"
+    if (/apple/.test(low)) return "Devolución Apple"
+    if (/paypal/.test(low)) return "Devolución PayPal"
+
+    const cleaned = s
+      .replace(/(?:devoluci[oó]n|reembolso|refund)\s*(?:compra\s*(?:en\s*)?)?/gi, " ")
+      .replace(/(?:www\.)/gi, " ")
+      .replace(/[,;*]/g, " ")
+      .replace(/\.com|\.es|\.org/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+
+    const firstWord = cleaned.split(" ").filter((w) => w.length >= 2 && !/^\d+$/.test(w))[0]
+    if (firstWord) {
+      return `Devolución ${firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase()}`
     }
     return "Devolución"
   }
@@ -254,7 +271,7 @@ function parseExcelRows(matrix: unknown[][]): ParsedTransaction[] {
     const isDevolucion = /devoluci[oó]n|reembolso|refund/i.test(conceptRaw) || /devoluci[oó]n|reembolso|refund/i.test(description) || /devoluci[oó]n|reembolso/i.test(categoryRaw)
 
     if (isDevolucion && !description.startsWith("Devolución")) {
-      description = "Devolución"
+      description = `Devolución ${description}`.trim()
     }
 
     let type: "income" | "expense" = "expense"
