@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 interface IndexMeta {
   symbol: string
   short: string
-  category: "indices" | "bonds" | "commodities" | "crypto"
+  category: "indices" | "bonds" | "commodities" | "forex" | "crypto"
 }
 
 export interface IndexResult extends IndexMeta {
@@ -44,6 +44,11 @@ const SCANNER_TICKERS: Record<string, string[]> = {
   "TVC:UKOIL":       ["TVC:UKOIL", "TVC:BRENT"],
   "TVC:NATGAS":      ["TVC:NATGAS", "NYMEX:NG1!", "CAPITALCOM:NATURALGAS"],
   "COMEX:HG1!":      ["COMEX:HG1!", "CAPITALCOM:XCUUSD"],
+  "FX_IDC:EURUSD":   ["FX_IDC:EURUSD", "FX:EURUSD", "OANDA:EURUSD"],
+  "FX_IDC:USDJPY":   ["FX_IDC:USDJPY", "FX:USDJPY", "OANDA:USDJPY"],
+  "FX_IDC:GBPUSD":   ["FX_IDC:GBPUSD", "FX:GBPUSD", "OANDA:GBPUSD"],
+  "FX_IDC:EURGBP":   ["FX_IDC:EURGBP", "FX:EURGBP", "OANDA:EURGBP"],
+  "TVC:DXY":         ["TVC:DXY", "CAPITALCOM:DXY", "INDEX:DXY"],
   "BINANCE:BTCUSDT": ["BINANCE:BTCUSDT", "COINBASE:BTCUSD"],
   "BINANCE:ETHUSDT": ["BINANCE:ETHUSDT", "COINBASE:ETHUSD"],
   "BINANCE:SOLUSDT": ["BINANCE:SOLUSDT", "COINBASE:SOLUSD"],
@@ -72,6 +77,11 @@ export const INDICES: IndexMeta[] = [
   { symbol: "TVC:UKOIL",       short: "BRENT",      category: "commodities" },
   { symbol: "TVC:NATGAS",      short: "NATGAS",     category: "commodities" },
   { symbol: "COMEX:HG1!",      short: "COPPER",     category: "commodities" },
+  { symbol: "FX_IDC:EURUSD",   short: "EUR/USD",    category: "forex"       },
+  { symbol: "FX_IDC:USDJPY",   short: "USD/JPY",    category: "forex"       },
+  { symbol: "FX_IDC:GBPUSD",   short: "GBP/USD",    category: "forex"       },
+  { symbol: "FX_IDC:EURGBP",   short: "EUR/GBP",    category: "forex"       },
+  { symbol: "TVC:DXY",         short: "DXY (USD)",  category: "forex"       },
   { symbol: "BINANCE:BTCUSDT", short: "BTC",        category: "crypto"      },
   { symbol: "BINANCE:ETHUSDT", short: "ETH",        category: "crypto"      },
   { symbol: "BINANCE:SOLUSDT", short: "SOL",        category: "crypto"      },

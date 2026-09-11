@@ -43,8 +43,8 @@ export function PwaInstaller() {
       const handleBeforeInstallPrompt = (e: Event) => {
         e.preventDefault()
         setInstallPrompt(e as BeforeInstallPromptEvent)
-        // Show banner only if user hasn't dismissed it in this session
-        const dismissed = sessionStorage.getItem("pwa_banner_dismissed")
+        // Show banner only if user hasn't permanently dismissed it
+        const dismissed = localStorage.getItem("pwa_banner_dismissed")
         if (!dismissed && !isRunningStandalone) {
           setShowBanner(true)
         }
@@ -67,12 +67,13 @@ export function PwaInstaller() {
     if (outcome === "accepted") {
       setInstallPrompt(null)
       setShowBanner(false)
+      localStorage.setItem("pwa_banner_dismissed", "true")
     }
   }
 
   function handleDismiss() {
     setShowBanner(false)
-    sessionStorage.setItem("pwa_banner_dismissed", "true")
+    localStorage.setItem("pwa_banner_dismissed", "true")
   }
 
   if (isStandalone || !showBanner) {

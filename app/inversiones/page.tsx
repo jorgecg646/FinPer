@@ -58,7 +58,9 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
         <MarketIndicesPanel />
 
         {/* Real-time market prices & live portfolio summary */}
-        <StockPricesPanel initialPositions={stockPositions} />
+        <StockPricesPanel
+          initialPositions={stockPositions}
+        />
 
         <div className="grid grid-cols-1 gap-6">
           <InvestmentMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />

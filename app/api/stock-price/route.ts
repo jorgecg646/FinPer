@@ -25,6 +25,24 @@ export interface StockPriceResult {
 const priceCache = new Map<string, { timestamp: number; data: StockPriceResult }>()
 const CACHE_TTL_MS = 30_000
 
+function resolveTradingViewLogoId(
+  symbol: string,
+  logoid?: string | null,
+  baseCurrencyLogoid?: string | null
+): string {
+  if (typeof logoid === "string" && logoid.trim()) return logoid.trim()
+  if (typeof baseCurrencyLogoid === "string" && baseCurrencyLogoid.trim()) return baseCurrencyLogoid.trim()
+
+  const sym = symbol.toUpperCase()
+  // Crypto fallback mappings for TradingView SVG logos
+  const cryptoMatch = sym.match(/(?:BINANCE:|CRYPTO:|COINBASE:|BITSTAMP:|OKX:|BYBIT:|KRAKEN:)?([A-Z0-9]+)(?:USDT|USD|EUR|BTC|ETH)?$/)
+  const base = cryptoMatch ? cryptoMatch[1] : ""
+  if (base && ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK", "NEAR", "SUI", "PEPE", "SHIB", "TRX", "LTC", "BCH", "UNI", "MATIC", "POL", "APT", "RENDER", "ICP", "FET", "FIL", "ATOM", "XLM", "MONERO", "XMR", "KAS", "TON"].includes(base)) {
+    return `crypto/XTVC${base}`
+  }
+  return ""
+}
+
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.trim().toUpperCase()
 
@@ -63,6 +81,7 @@ export async function GET(req: NextRequest) {
           "currency",
           "exchange",
           "logoid",
+          "base_currency_logoid",
         ],
       }),
       signal: AbortSignal.timeout(6000),
@@ -86,12 +105,14 @@ export async function GET(req: NextRequest) {
           currency,
           exchange,
           logoid,
+          baseCurrencyLogoid,
         ] = row.d
 
         const price = Number(close)
         const change = typeof changeAbs === "number" ? Number(changeAbs) : 0
         const changePercent = typeof changePct === "number" ? Number(changePct) : 0
         const prevClose = price - change
+        const finalLogoId = resolveTradingViewLogoId(symbol, logoid, baseCurrencyLogoid)
 
         const result: StockPriceResult = {
           symbol,
@@ -108,7 +129,7 @@ export async function GET(req: NextRequest) {
           currency: typeof currency === "string" && currency ? currency.toUpperCase() : "USD",
           exchange: typeof exchange === "string" ? exchange : symbol.split(":")[0] || "",
           timestamp: now,
-          logoid: typeof logoid === "string" ? logoid : "",
+          logoid: finalLogoId,
         }
 
         priceCache.set(symbol, { timestamp: now, data: result })
@@ -157,6 +178,11 @@ export async function GET(req: NextRequest) {
         const change = accumulated.ch ?? 0
         const changePercent = accumulated.chp ?? 0
         const prevClose = accumulated.prev_close_price ?? price - change
+        const finalLogoId = resolveTradingViewLogoId(
+          symbol,
+          accumulated.logoid,
+          accumulated.base_currency_logoid || accumulated["base-currency-logoid"]
+        )
 
         resolve({
           symbol,
@@ -173,7 +199,7 @@ export async function GET(req: NextRequest) {
           currency: accumulated.currency_code ?? "USD",
           exchange: accumulated.exchange ?? "",
           timestamp: Date.now(),
-          logoid: accumulated.logoid ?? "",
+          logoid: finalLogoId,
         })
       })
 

@@ -16,6 +16,8 @@ import {
   ASSET_COLORS,
   CompoundGrowthChart,
   IndexComparisonChart,
+  detectSector,
+  SECTOR_CONFIGS,
 } from "./stock-charts"
 
 const TradingViewAdvancedWidget = nextDynamic(
@@ -33,6 +35,10 @@ const PriceAlertsMacroCalendar = nextDynamic(
 const SectorRiskAnalysis = nextDynamic(
   () => import("./stock-charts").then((mod) => mod.SectorRiskAnalysis),
   { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
+)
+const FearGreedGauge = nextDynamic(
+  () => import("./stock-charts").then((mod) => mod.FearGreedGauge),
+  { ssr: false, loading: () => <div className="h-64 rounded-3xl bg-secondary/30 animate-pulse" /> }
 )
 
 function PLBar({ isGain, pct, minPct = 4 }: { isGain: boolean; pct: number; minPct?: number }) {
@@ -60,8 +66,8 @@ function PortfolioChartsPanel({
   currentPrices: Record<string, { price: number; currency: string }>
   displayCurrency: string
   fxRates: Record<string, number>
-  activeTab: "allocation" | "ranking" | "sector" | "index" | "compound" | "tax" | "alerts"
-  setActiveTab: (tab: "allocation" | "ranking" | "sector" | "index" | "compound" | "tax" | "alerts") => void
+  activeTab: "allocation" | "sector" | "index" | "compound" | "tax" | "alerts"
+  setActiveTab: (tab: "allocation" | "sector" | "index" | "compound" | "tax" | "alerts") => void
 }) {
   const [hoveredSymbol, setHoveredSymbol] = useState<string | null>(null)
   const dispSym = CURRENCY_SYMBOLS[displayCurrency] ?? displayCurrency
@@ -136,8 +142,6 @@ function PortfolioChartsPanel({
     return { ...it, startAngle, endAngle }
   })
 
-  const rankedItems = [...items].sort((a, b) => b.plPct - a.plPct)
-  const maxRankPct = Math.max(...items.map((it) => Math.abs(it.plPct)), 1)
   const maxPL = Math.max(...items.map((it) => Math.abs(it.plDisp)), 1)
   const activeItem = itemsWithWeight.find((it) => it.symbol === hoveredSymbol)
 
@@ -152,7 +156,6 @@ function PortfolioChartsPanel({
           {(
             [
               { id: "allocation", label: "📊 Distribución" },
-              { id: "ranking", label: "🏆 Ranking" },
               { id: "sector", label: "🛡️ Sectores" },
               { id: "alerts", label: "🔔 Alertas & Macro" },
               { id: "index", label: "📈 Comparativa" },
@@ -185,7 +188,7 @@ function PortfolioChartsPanel({
                 Distribución por Activo
               </span>
               {activeItem && (
-                <span className="text-[11px] font-bold text-primary truncate max-w-[180px]">
+                <span className="text-[11px] font-bold text-primary truncate max-w-[150px]">
                   {activeItem.label} ({activeItem.weightPct.toFixed(1)}%)
                 </span>
               )}
@@ -214,10 +217,10 @@ function PortfolioChartsPanel({
                   <span className="text-sm font-extrabold text-foreground tabular-nums">
                     {hoveredSymbol && activeItem
                       ? `${activeItem.weightPct.toFixed(1)}%`
-                      : `${itemsWithWeight.length} pos.`}
+                      : `${items.length}`}
                   </span>
                   <span className="text-[9px] font-semibold text-muted-foreground uppercase">
-                    {hoveredSymbol ? "Peso" : "Cartera"}
+                    {hoveredSymbol ? "Peso" : "posiciones"}
                   </span>
                 </div>
               </div>
@@ -273,45 +276,7 @@ function PortfolioChartsPanel({
         </div>
       )}
 
-      {/* Tab 2: Performance Ranking Leaderboard */}
-      {activeTab === "ranking" && (
-        <div className="flex flex-col gap-2.5 bg-background/50 rounded-xl p-3.5 border border-border/30 animate-in fade-in duration-150">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
-            <span>Ranking de Rendimiento (% Rentabilidad)</span>
-            <span>{rankedItems.length} activos ordenados de mayor a menor</span>
-          </p>
-
-          <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
-            {rankedItems.map((it, idx) => {
-              const isGain = it.plPct >= 0
-              const barPct = (Math.abs(it.plPct) / maxRankPct) * 100
-              const rankMedal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`
-
-              return (
-                <div key={it.symbol} className="flex items-center gap-3 p-2 rounded-xl bg-secondary/30 border border-border/30">
-                  <span className="text-xs font-bold shrink-0 w-6 text-center">{rankMedal}</span>
-
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <div className="flex justify-between items-center text-xs mb-1">
-                      <span className="font-bold text-foreground truncate">{it.label}</span>
-                      <span className={`font-extrabold tabular-nums ${isGain ? "text-positive" : "text-destructive"}`}>
-                        {isGain ? "+" : ""}{it.plPct.toFixed(2)}%
-                        <span className="text-[10px] text-muted-foreground ml-1.5 font-normal">
-                          ({isGain ? "+" : ""}{dispSym}{it.plDisp.toLocaleString("es-ES", { maximumFractionDigits: 0 })})
-                        </span>
-                      </span>
-                    </div>
-
-                    <PLBar isGain={isGain} pct={barPct} minPct={5} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Sector & Risk Matrix Breakdown */}
+      {/* Tab 2: Sector & Risk Matrix Breakdown */}
       {activeTab === "sector" && (
         <div className="animate-in fade-in duration-150">
           <SectorRiskAnalysis items={itemsWithWeight} displayCurrency={displayCurrency} />
@@ -345,8 +310,9 @@ function PortfolioChartsPanel({
 
       {/* Tab 5: Price Alerts & Macro Calendar */}
       {activeTab === "alerts" && (
-        <div className="animate-in fade-in duration-150">
+        <div className="flex flex-col gap-6 animate-in fade-in duration-150">
           <PriceAlertsMacroCalendar symbols={positions.map((p) => p.symbol)} />
+          <FearGreedGauge />
         </div>
       )}
 
@@ -362,7 +328,11 @@ function PortfolioChartsPanel({
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export function StockPricesPanel({ initialPositions }: { initialPositions: StockPosition[] }) {
+export function StockPricesPanel({
+  initialPositions,
+}: {
+  initialPositions: StockPosition[]
+}) {
   const [positions, setPositions] = useState<StockPosition[]>(initialPositions)
   const [showModal, setShowModal] = useState(false)
   const [currentPrices, setCurrentPrices] = useState<
@@ -371,7 +341,7 @@ export function StockPricesPanel({ initialPositions }: { initialPositions: Stock
   const [displayCurrency, setDisplayCurrency] = useState("EUR")
   const [fxRates, setFxRates] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<
-    "allocation" | "ranking" | "sector" | "index" | "compound" | "tax" | "alerts"
+    "allocation" | "sector" | "index" | "compound" | "tax" | "alerts"
   >("allocation")
   const [, startTransition] = useTransition()
   const router = useRouter()
@@ -683,7 +653,7 @@ export function StockPricesPanel({ initialPositions }: { initialPositions: Stock
         />
       )}
 
-      {(activeTab === "allocation" || activeTab === "ranking" || activeTab === "sector") && (
+      {(activeTab === "allocation" || activeTab === "sector") && (
         positions.length === 0 ? (
           <div className="mt-6 flex flex-col items-center justify-center gap-3 py-10 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary/60">
