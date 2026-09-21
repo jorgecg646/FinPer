@@ -1,7 +1,7 @@
 import { getSummary, getTransactions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import { YearSelector } from "@/components/finance/charts"
-import { CurrencySelector, PdfExporter } from "@/components/finance/currency-pdf-exporter"
+import { CurrencySelector } from "@/components/finance/currency-pdf-exporter"
 import { MicroExpensesLongTermCalculator } from "./micro-expenses-calculator"
 import { ScenarioSimulator } from "./scenario-simulator"
 import { Rule503020Calculator } from "./financial-calculators"
@@ -47,7 +47,6 @@ export default async function CalculadorasPage({
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <CurrencySelector />
-            <PdfExporter summary={summary} transactions={transactions} />
             <YearSelector selectedYear={summary.selectedYear} availableYears={summary.availableYears} />
           </div>
         </header>

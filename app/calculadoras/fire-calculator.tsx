@@ -11,6 +11,7 @@ import {
   Compass,
   Coffee,
 } from "lucide-react"
+import { fmtCurrency, fmtPercent } from "@/lib/format"
 
 export function FireCalculator({
   summary,
@@ -147,11 +148,11 @@ export function FireCalculator({
             Tu Número F.I.R.E. Objetivo
           </span>
           <h3 className="text-3xl sm:text-5xl font-black text-foreground tabular-nums tracking-tight">
-            ${fireNumber.toLocaleString("es-ES")}
+            {fmtCurrency(fireNumber, "$", 0, 0)}
           </h3>
           <p className="text-xs sm:text-sm text-muted-foreground font-medium max-w-md">
-            Con este patrimonio podrás retirar <strong className="text-foreground">${monthlyExpenses.toLocaleString("es-ES")} / mes</strong> ($
-            {annualRetirementExpenses.toLocaleString("es-ES")}/año) con la regla del {swrPct}% sin que tu dinero se agote nunca.
+            Con este patrimonio podrás retirar <strong className="text-foreground">{fmtCurrency(monthlyExpenses, "$", 0, 0)} / mes</strong> (
+            {fmtCurrency(annualRetirementExpenses, "$", 0, 0)}/año) con la regla del {swrPct}% sin que tu dinero se agote nunca.
           </p>
 
           {/* Progress bar */}
@@ -159,7 +160,7 @@ export function FireCalculator({
             <div className="flex justify-between text-xs font-bold">
               <span className="text-muted-foreground">Progreso actual</span>
               <span className="text-orange-600 dark:text-orange-400 font-black">
-                {currentProgressPct.toFixed(1)}% (${currentNetWorth.toLocaleString("es-ES")})
+                {fmtPercent(currentProgressPct, 1)} ({fmtCurrency(currentNetWorth, "$", 0, 0)})
               </span>
             </div>
             <div className="h-2.5 w-full rounded-full bg-secondary/80 overflow-hidden border border-border/40">
@@ -217,7 +218,7 @@ export function FireCalculator({
           <div className="flex justify-between items-center">
             <label className="text-xs font-bold text-muted-foreground uppercase">Patrimonio Actual</label>
             <span className="text-sm font-black text-foreground tabular-nums">
-              ${currentNetWorth.toLocaleString("es-ES")}
+              {fmtCurrency(currentNetWorth, "$", 0, 0)}
             </span>
           </div>
           <input
@@ -236,7 +237,7 @@ export function FireCalculator({
           <div className="flex justify-between items-center">
             <label className="text-xs font-bold text-muted-foreground uppercase">Gasto Mensual Deseado</label>
             <span className="text-sm font-black text-foreground tabular-nums">
-              ${monthlyExpenses.toLocaleString("es-ES")}/mes
+              {fmtCurrency(monthlyExpenses, "$", 0, 0)}/mes
             </span>
           </div>
           <input
@@ -255,7 +256,7 @@ export function FireCalculator({
           <div className="flex justify-between items-center">
             <label className="text-xs font-bold text-muted-foreground uppercase">Aportación Mensual</label>
             <span className="text-sm font-black text-foreground tabular-nums">
-              ${monthlyContribution.toLocaleString("es-ES")}/mes
+              {fmtCurrency(monthlyContribution, "$", 0, 0)}/mes
             </span>
           </div>
           <input
@@ -369,75 +370,38 @@ export function FireCalculator({
 
       {/* 4 F.I.R.E. Types Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Lean FIRE */}
-        <div className="p-4 rounded-2xl bg-secondary/30 border border-border/40 flex flex-col justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Coffee className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-black uppercase text-foreground">Lean F.I.R.E.</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Estilo de vida minimalista y gastos básicos ({monthlyExpenses * 0.75} €/mes).
-          </p>
-          <div className="border-t border-border/30 pt-2">
-            <span className="text-xs text-muted-foreground block font-medium">Meta:</span>
-            <span className="text-base font-black text-foreground tabular-nums">
-              ${leanFireNumber.toLocaleString("es-ES")}
-            </span>
-          </div>
-        </div>
-
-        {/* Standard FIRE */}
-        <div className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex flex-col justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Flame className="h-4 w-4 text-orange-500" />
-            <span className="text-xs font-black uppercase text-orange-600 dark:text-orange-400">
-              Standard F.I.R.E.
-            </span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Mantener tu nivel de vida actual ({monthlyExpenses} €/mes).
-          </p>
-          <div className="border-t border-orange-500/20 pt-2">
-            <span className="text-xs text-muted-foreground block font-medium">Meta:</span>
-            <span className="text-base font-black text-foreground tabular-nums">
-              ${fireNumber.toLocaleString("es-ES")}
-            </span>
-          </div>
-        </div>
-
-        {/* Fat FIRE */}
-        <div className="p-4 rounded-2xl bg-secondary/30 border border-border/40 flex flex-col justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Palmtree className="h-4 w-4 text-emerald-500" />
-            <span className="text-xs font-black uppercase text-foreground">Fat F.I.R.E.</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Estilo holgado con viajes y ocio extra ({monthlyExpenses * 1.5} €/mes).
-          </p>
-          <div className="border-t border-border/30 pt-2">
-            <span className="text-xs text-muted-foreground block font-medium">Meta:</span>
-            <span className="text-base font-black text-foreground tabular-nums">
-              ${fatFireNumber.toLocaleString("es-ES")}
-            </span>
-          </div>
-        </div>
-
-        {/* Coast FIRE */}
-        <div className="p-4 rounded-2xl bg-secondary/30 border border-border/40 flex flex-col justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Compass className="h-4 w-4 text-sky-500" />
-            <span className="text-xs font-black uppercase text-foreground">Coast F.I.R.E.</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Capital necesario hoy para jubilarte a los 65 sin aportar nada más.
-          </p>
-          <div className="border-t border-border/30 pt-2">
-            <span className="text-xs text-muted-foreground block font-medium">Meta hoy:</span>
-            <span className="text-base font-black text-foreground tabular-nums">
-              ${coastFireNumber.toLocaleString("es-ES")}
-            </span>
-          </div>
-        </div>
+        {[
+          { name: "Lean F.I.R.E.", icon: Coffee, color: "text-amber-500", desc: `Estilo de vida minimalista y gastos básicos (${monthlyExpenses * 0.75} €/mes).`, label: "Meta:", amount: leanFireNumber, isStd: false },
+          { name: "Standard F.I.R.E.", icon: Flame, color: "text-orange-500", desc: `Mantener tu nivel de vida actual (${monthlyExpenses} €/mes).`, label: "Meta:", amount: fireNumber, isStd: true },
+          { name: "Fat F.I.R.E.", icon: Palmtree, color: "text-emerald-500", desc: `Estilo holgado con viajes y ocio extra (${monthlyExpenses * 1.5} €/mes).`, label: "Meta:", amount: fatFireNumber, isStd: false },
+          { name: "Coast F.I.R.E.", icon: Compass, color: "text-sky-500", desc: "Capital necesario hoy para jubilarte a los 65 sin aportar nada más.", label: "Meta hoy:", amount: coastFireNumber, isStd: false },
+        ].map((tier) => {
+          const Icon = tier.icon
+          return (
+            <div
+              key={tier.name}
+              className={`p-4 rounded-2xl flex flex-col justify-between gap-3 ${
+                tier.isStd
+                  ? "bg-orange-500/10 border border-orange-500/30"
+                  : "bg-secondary/30 border border-border/40"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon className={`h-4 w-4 ${tier.color}`} />
+                <span className={`text-xs font-black uppercase ${tier.isStd ? "text-orange-600 dark:text-orange-400" : "text-foreground"}`}>
+                  {tier.name}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">{tier.desc}</p>
+              <div className={`border-t pt-2 ${tier.isStd ? "border-orange-500/20" : "border-border/30"}`}>
+                <span className="text-xs text-muted-foreground block font-medium">{tier.label}</span>
+                <span className="text-base font-black text-foreground tabular-nums">
+                  {fmtCurrency(tier.amount, "$", 0, 0)}
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* SVG Compound Growth Timeline Chart */}
@@ -476,7 +440,7 @@ export function FireCalculator({
                   <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
                     {/* Tooltip on hover */}
                     <div className="absolute -top-12 bg-foreground text-background text-[9px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md z-20">
-                      Edad {pt.age}: ${pt.totalCapital.toLocaleString("es-ES")}
+                      Edad {pt.age}: {fmtCurrency(pt.totalCapital, "$", 0, 0)}
                     </div>
 
                     {isFireYear && (

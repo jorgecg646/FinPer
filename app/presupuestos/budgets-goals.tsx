@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { Target, Plus, Trash2, CheckCircle2, AlertCircle, ShieldAlert, Sparkles } from "lucide-react"
 import type { Tx } from "@/app/actions"
+import { fmtCurrency, fmtPercent } from "@/lib/format"
+import { useCurrency } from "@/components/finance/use-currency"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -29,7 +31,14 @@ const GOALS_KEY = "finflow-goals"
 // BudgetsAndGoalsManager Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] }) {
+export function BudgetsAndGoalsManager({
+  transactions,
+  currencySymbol,
+}: {
+  transactions: Tx[]
+  currencySymbol?: string
+}) {
+  const { symbol: resolvedSym } = useCurrency(currencySymbol)
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
 
@@ -137,7 +146,7 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
             step="10"
             value={newBudgetLimit}
             onChange={(e) => setNewBudgetLimit(e.target.value)}
-            placeholder="Límite mensual ($)"
+            placeholder={`Límite mensual (${resolvedSym})`}
             className="rounded-2xl border border-border bg-background px-3.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-ring"
           />
           <button
@@ -166,7 +175,7 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-muted-foreground">
-                      ${spent.toLocaleString("es-ES")} / ${b.limitAmount.toLocaleString("es-ES")}
+                      {fmtCurrency(spent, resolvedSym, 0, 0)} / {fmtCurrency(b.limitAmount, resolvedSym, 0, 0)}
                     </span>
                     <button
                       onClick={() => handleDeleteBudget(b.id)}
@@ -188,8 +197,8 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
                 </div>
 
                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>{pct.toFixed(1)}% gastado</span>
-                  <span>{isExceeded ? `Excedido -$${(spent - b.limitAmount).toFixed(0)}` : `Disponible $${(b.limitAmount - spent).toFixed(0)}`}</span>
+                  <span>{fmtPercent(pct, 1)} gastado</span>
+                  <span>{isExceeded ? `Excedido -${fmtCurrency(spent - b.limitAmount, resolvedSym, 0, 0)}` : `Disponible ${fmtCurrency(b.limitAmount - spent, resolvedSym, 0, 0)}`}</span>
                 </div>
               </div>
             )
@@ -221,14 +230,14 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
             type="number"
             value={newGoalTarget}
             onChange={(e) => setNewGoalTarget(e.target.value)}
-            placeholder="Objetivo ($)"
+            placeholder={`Objetivo (${resolvedSym})`}
             className="rounded-2xl border border-border bg-background px-3.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-ring"
           />
           <input
             type="number"
             value={newGoalCurrent}
             onChange={(e) => setNewGoalCurrent(e.target.value)}
-            placeholder="Ahorrado ya ($)"
+            placeholder={`Ahorrado ya (${resolvedSym})`}
             className="rounded-2xl border border-border bg-background px-3.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-ring"
           />
           <button
@@ -262,8 +271,8 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                  <span>${g.currentAmount.toLocaleString("es-ES")} de ${g.targetAmount.toLocaleString("es-ES")}</span>
-                  <span className="text-positive font-bold">{pct.toFixed(1)}%</span>
+                  <span>{fmtCurrency(g.currentAmount, resolvedSym, 0, 0)} de {fmtCurrency(g.targetAmount, resolvedSym, 0, 0)}</span>
+                  <span className="text-positive font-bold">{fmtPercent(pct, 1)}</span>
                 </div>
 
                 <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
@@ -277,13 +286,13 @@ export function BudgetsAndGoalsManager({ transactions }: { transactions: Tx[] })
                       onClick={() => handleUpdateGoalAmount(g.id, 50)}
                       className="rounded-full bg-positive/10 px-2.5 py-0.5 font-bold text-positive hover:bg-positive/20"
                     >
-                      +$50
+                      +{fmtCurrency(50, resolvedSym, 0, 0)}
                     </button>
                     <button
                       onClick={() => handleUpdateGoalAmount(g.id, 100)}
                       className="rounded-full bg-positive/10 px-2.5 py-0.5 font-bold text-positive hover:bg-positive/20"
                     >
-                      +$100
+                      +{fmtCurrency(100, resolvedSym, 0, 0)}
                     </button>
                   </div>
                 </div>

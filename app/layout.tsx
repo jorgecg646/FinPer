@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { DataMutationListener } from '@/components/finance/refresh-on-navigate'
 import { PwaInstaller } from '@/components/finance/pwa-installer'
@@ -24,11 +25,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/BudgetNext.png',
+        type: 'image/png',
       },
     ],
-    apple: '/icon.svg',
+    apple: '/BudgetNext.png',
+    shortcut: '/BudgetNext.png',
   },
 }
 
@@ -58,6 +60,46 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="BudgetNext" />
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+  try {
+    if (typeof Element !== 'undefined' && Element.prototype && Element.prototype.setAttribute) {
+      var origSetAttr = Element.prototype.setAttribute;
+      Element.prototype.setAttribute = function(name, value) {
+        if (name && typeof name === 'string' && name.indexOf('bis_') === 0) return;
+        return origSetAttr.apply(this, arguments);
+      };
+    }
+  } catch(e) {}
+  try {
+    if (typeof MutationObserver !== 'undefined' && document.documentElement) {
+      var obs = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.type === 'attributes' && m.attributeName && m.attributeName.indexOf('bis_') === 0) {
+            m.target.removeAttribute(m.attributeName);
+          }
+        }
+      });
+      obs.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['bis_skin_checked', 'bis_register'] });
+    }
+  } catch(e) {}
+  try {
+    var t = localStorage.getItem("finflow-theme");
+    if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme:dark)").matches)) {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+    }
+  } catch(e) {}
+})()`,
+          }}
+        />
       </head>
       <body className="antialiased font-sans" suppressHydrationWarning>
         <DataMutationListener />

@@ -6,6 +6,7 @@ import { numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
 import { and, desc, eq, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { cookies } from "next/headers"
+import { isInvestmentTx } from "@/lib/finance"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DB — Schema + Connection
@@ -42,12 +43,20 @@ function getConnectionString(): string | undefined {
   return connStr
 }
 
-const pool = new Pool({
-  connectionString: getConnectionString(),
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: true } : false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-})
+function getOrCreatePool(): Pool {
+  const g = globalThis as typeof globalThis & { _finperPool?: Pool }
+  if (!g._finperPool) {
+    g._finperPool = new Pool({
+      connectionString: getConnectionString(),
+      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: true } : false,
+      max: 10,
+      idleTimeoutMillis: 30000,
+    })
+  }
+  return g._finperPool
+}
+
+const pool = getOrCreatePool()
 const db = drizzle(pool, { schema: { transactions, stockPositions } })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,16 +149,15 @@ export type ProfileStats = {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+function normalizeCategory(category: string): string {
+  return /devoluci[oó]n|reembolso|refund/i.test(category) ? "Reembolso" : category
+}
+
 function toTx(row: typeof transactions.$inferSelect): Tx {
-  let name = row.name
-  let category = row.category
-  if (/devoluci[oó]n|reembolso|refund/i.test(category)) {
-    category = "Reembolso"
-  }
   return {
     id: row.id,
-    name,
-    category,
+    name: row.name,
+    category: normalizeCategory(row.category),
     type: row.type as TxType,
     amount: Number(row.amount),
     occurredAt: (row.occurredAt as Date).toISOString(),
@@ -157,14 +165,10 @@ function toTx(row: typeof transactions.$inferSelect): Tx {
 }
 
 function validate(input: TxInput) {
-  let name = input.name?.trim()
-  let category = input.category?.trim() || "General"
+  const name = input.name?.trim()
+  const category = normalizeCategory(input.category?.trim() || "General")
   const type: TxType = input.type === "income" ? "income" : "expense"
   const amount = Math.abs(Number(input.amount))
-
-  if (/devoluci[oó]n|reembolso|refund/i.test(category)) {
-    category = "Reembolso"
-  }
 
   if (!name) throw new Error("El nombre es obligatorio")
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("El importe debe ser mayor que 0")
@@ -217,10 +221,27 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
   }
   const availableYears = [...yearSet].sort((a, b) => b - a)
 
-  // Select targetYear if specified, otherwise pick the year with transactions or currentYear
-  let selectedYear = targetYear && availableYears.includes(targetYear) ? targetYear : currentYear
-
+  // Check cookie if targetYear not explicitly provided
+  let cookieYear: number | undefined
   if (!targetYear) {
+    try {
+      const cookieStore = await cookies()
+      const rawCookie = cookieStore.get("finflow_selected_year")?.value
+      if (rawCookie) {
+        const parsed = Number(rawCookie)
+        if (parsed && availableYears.includes(parsed)) {
+          cookieYear = parsed
+        }
+      }
+    } catch {}
+  }
+
+  const desiredYear = targetYear || cookieYear
+
+  // Select desiredYear if specified and available, otherwise pick the year with transactions or currentYear
+  let selectedYear = desiredYear && availableYears.includes(desiredYear) ? desiredYear : currentYear
+
+  if (!desiredYear) {
     const hasTxsInCurrentYear = txs.some((t) => new Date(t.occurredAt).getFullYear() === currentYear)
     if (!hasTxsInCurrentYear && availableYears.length > 0) {
       const yearWithTxs = availableYears.find((y) => txs.some((t) => new Date(t.occurredAt).getFullYear() === y))
@@ -228,17 +249,10 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
     }
   }
 
-  // Investment categories are capital transfers — they don't count as income or expense
-  const INVESTMENT_CAT = /invers|trading|broker|myinvestor|trade republic|crypto|cripto|acciones|fondos|etf|bitcoin|binance|degiro|bolsa|patrimonio/i
-
-  function isInvestmentRow(t: Tx): boolean {
-    return INVESTMENT_CAT.test(t.category) || INVESTMENT_CAT.test(t.name)
-  }
-
   let income = 0
   let expenses = 0
   for (const t of txs) {
-    if (isInvestmentRow(t)) continue // skip capital transfers
+    if (isInvestmentTx(t)) continue // skip capital transfers
     const d = new Date(t.occurredAt)
     if (d.getFullYear() === selectedYear) {
       if (t.type === "income") income += t.amount
@@ -254,7 +268,7 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
   const byKey = new Map(buckets.map((b) => [b.key, b]))
 
   for (const t of txs) {
-    if (isInvestmentRow(t)) continue // skip capital transfers
+    if (isInvestmentTx(t)) continue // skip capital transfers
     const d = new Date(t.occurredAt)
     if (d.getFullYear() === selectedYear) {
       const bucket = byKey.get(`${selectedYear}-${d.getMonth()}`)
@@ -270,13 +284,20 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
     }
   }
 
+  const round2 = (n: number) => Math.round(n * 100) / 100
+
   return {
-    balance: income - expenses,
-    income,
-    expenses,
+    balance: round2(income - expenses),
+    income: round2(income),
+    expenses: round2(expenses),
     selectedYear,
     availableYears,
-    monthly: buckets,
+    monthly: buckets.map((b) => ({
+      ...b,
+      net: round2(b.net),
+      income: round2(b.income),
+      expense: round2(b.expense),
+    })),
   }
 }
 

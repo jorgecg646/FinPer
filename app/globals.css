@@ -56,22 +56,22 @@
   --card-foreground: #16241d;
   --popover: #ffffff;
   --popover-foreground: #16241d;
-  --primary: #c4e538;
-  --primary-foreground: #16241d;
+  --primary: #10b981;
+  --primary-foreground: #ffffff;
   --secondary: #eceadf;
   --secondary-foreground: #16241d;
   --muted: #eceadf;
   --muted-foreground: #47554b;
-  --accent: #c4e538;
-  --accent-foreground: #16241d;
+  --accent: #10b981;
+  --accent-foreground: #ffffff;
   --destructive: #c92a2a;
   --border: #e5e2d6;
   --input: #e5e2d6;
-  --ring: #c4e538;
+  --ring: #10b981;
   --brand-dark: #16362a;
-  --brand-lime: #c4e538;
-  --positive: #15803d;
-  --chart-1: #c4e538;
+  --brand-lime: #10b981;
+  --positive: #10b981;
+  --chart-1: #10b981;
   --chart-2: #16362a;
   --chart-3: #15803d;
   --chart-4: #47554b;
@@ -84,78 +84,78 @@
   --sidebar-accent: #eceadf;
   --sidebar-accent-foreground: #16241d;
   --sidebar-border: #e5e2d6;
-  --sidebar-ring: #c4e538;
+  --sidebar-ring: #10b981;
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0d0e12;
+  --foreground: #f4f4f7;
+  --card: #15171c;
+  --card-foreground: #f4f4f7;
+  --popover: #181a20;
+  --popover-foreground: #f4f4f7;
+  --primary: #10b981;
+  --primary-foreground: #0d0e12;
+  --secondary: #1e2027;
+  --secondary-foreground: #f4f4f7;
+  --muted: #1e2027;
+  --muted-foreground: #8e929d;
+  --accent: #1e2027;
+  --accent-foreground: #10b981;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #10b981;
+  --chart-1: #10b981;
+  --chart-2: #3b82f6;
+  --chart-3: #8b5cf6;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
+  --sidebar: #121317;
+  --sidebar-foreground: #f4f4f7;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #0d0e12;
+  --sidebar-accent: #1e2027;
+  --sidebar-accent-foreground: #f4f4f7;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #10b981;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
     color-scheme: dark;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #0d0e12;
+    --foreground: #f4f4f7;
+    --card: #15171c;
+    --card-foreground: #f4f4f7;
+    --popover: #181a20;
+    --popover-foreground: #f4f4f7;
+    --primary: #10b981;
+    --primary-foreground: #0d0e12;
+    --secondary: #1e2027;
+    --secondary-foreground: #f4f4f7;
+    --muted: #1e2027;
+    --muted-foreground: #8e929d;
+    --accent: #1e2027;
+    --accent-foreground: #10b981;
+    --destructive: #ef4444;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.12);
+    --ring: #10b981;
+    --chart-1: #10b981;
+    --chart-2: #3b82f6;
+    --chart-3: #8b5cf6;
+    --chart-4: #f59e0b;
+    --chart-5: #ef4444;
+    --sidebar: #121317;
+    --sidebar-foreground: #f4f4f7;
+    --sidebar-primary: #10b981;
+    --sidebar-primary-foreground: #0d0e12;
+    --sidebar-accent: #1e2027;
+    --sidebar-accent-foreground: #f4f4f7;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #10b981;
   }
 }
 
@@ -178,9 +178,138 @@
   width: max-content;
   will-change: transform;
   transform: translateZ(0);
-  animation: marquee 200s linear infinite;
+  animation: marquee 320s linear infinite;
 }
 
 .animate-marquee:hover {
   animation-play-state: paused;
+}
+
+/* ─── Reglas de Impresión y Exportación a PDF (Informe Fiscal IRPF) ─── */
+@media print {
+  /* 1. Ocultar todos los elementos de la interfaz web estándar */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 2. Ocultar de raíz navegación, cabeceras, barras laterales y controles interactivos */
+  nav,
+  header,
+  aside,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  /* 3. Hacer visible única y exclusivamente el informe fiscal esencial */
+  .printable-fiscal-report,
+  .printable-fiscal-report * {
+    visibility: visible;
+  }
+
+  /* 4. Posicionar el informe limpio en la cabecera de la página */
+  .printable-fiscal-report {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 5. Asegurar contraste profesional de imprenta (evitar fondo oscuro en papel) */
+  .printable-fiscal-report h3,
+  .printable-fiscal-report h4,
+  .printable-fiscal-report h5,
+  .printable-fiscal-report p,
+  .printable-fiscal-report span,
+  .printable-fiscal-report div,
+  .printable-fiscal-report td,
+  .printable-fiscal-report th {
+    color: #0f172a !important;
+  }
+
+  .printable-fiscal-report .text-muted-foreground {
+    color: #475569 !important;
+  }
+
+  /* Tarjetas métricas ejecutivas */
+  .printable-fiscal-report .print-card {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .printable-fiscal-report .print-positive {
+    color: #047857 !important; /* Esmeralda oscuro de alta legibilidad */
+  }
+
+  .printable-fiscal-report .print-destructive {
+    color: #b91c1c !important; /* Rojo oscuro de alta legibilidad */
+  }
+
+  /* Tabla de operaciones detalladas */
+  .printable-fiscal-report .overflow-x-auto {
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .printable-fiscal-report table {
+    width: 100% !important;
+    min-width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .printable-fiscal-report thead tr {
+    background: #f1f5f9 !important;
+  }
+
+  .printable-fiscal-report th {
+    color: #334155 !important;
+    border-bottom: 2px solid #94a3b8 !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .printable-fiscal-report td {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+  }
+
+  .printable-fiscal-report .print-total-row {
+    background: #f1f5f9 !important;
+    font-weight: 800 !important;
+    border-top: 2px solid #94a3b8 !important;
+  }
+
+  /* Bloques informativos de casillas AEAT y normativa */
+  .printable-fiscal-report .print-info-box {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 10px 12px !important;
+  }
+
+  /* Prevención de saltos de página indeseados */
+  .printable-fiscal-report tr,
+  .printable-fiscal-report .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Configuración de página A4 vertical */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
 }

@@ -16,6 +16,9 @@ import {
   type TxType,
 } from "@/app/actions"
 import { ExcelImportButton } from "@/components/finance/excel-import"
+import { fmtSignedCurrency, fmtCurrency } from "@/lib/format"
+import { useCurrency } from "@/components/finance/use-currency"
+import { isInvestmentTx } from "@/lib/finance"
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,37 +26,32 @@ import { ExcelImportButton } from "@/components/finance/excel-import"
 const INCOME_CATEGORIES = ["Salario", "Freelance", "Inversiones", "Alquiler", "Bonificación", "Regalo", "Reembolso", "Ocio", "Otros ingresos"]
 const EXPENSE_CATEGORIES = ["Comida", "Supermercado", "Transporte", "Vivienda", "Ocio", "Salud", "Educación", "Suscripciones", "Ropa", "Viajes", "Restaurantes", "Tecnología", "Deporte", "Inversiones", "Reembolso", "General"]
 
-function getCategoryIcon(category: string, type: TxType) {
-  switch (category) {
-    // Ingresos
-    case "Salario": return Briefcase
-    case "Freelance": return Laptop
-    case "Inversiones": return TrendingUp
-    case "Alquiler": return Home
-    case "Bonificación": return Gift
-    case "Regalo": return Gift
-    case "Reembolso": return RefreshCw
-    case "Otros ingresos": return DollarSign
-
-    // Gastos
-    case "Comida": return Utensils
-    case "Restaurantes": return Utensils
-    case "Supermercado": return ShoppingCart
-    case "Transporte": return Bus
-    case "Vivienda": return Home
-    case "Ocio": return Tv
-    case "Salud": return HeartPulse
-    case "Educación": return GraduationCap
-    case "Suscripciones": return Tv
-    case "Ropa": return Shirt
-    case "Viajes": return Plane
-    case "Tecnología": return Smartphone
-    case "Deporte": return Dumbbell
-    case "Inversiones": return TrendingUp
-    case "General": default:
-      return type === "income" ? ArrowUpRight : ArrowDownLeft
-  }
+const CATEGORY_ICONS: Record<string, any> = {
+  Salario: Briefcase,
+  Freelance: Laptop,
+  Inversiones: TrendingUp,
+  Alquiler: Home,
+  Bonificación: Gift,
+  Regalo: Gift,
+  Reembolso: RefreshCw,
+  "Otros ingresos": DollarSign,
+  Comida: Utensils,
+  Restaurantes: Utensils,
+  Supermercado: ShoppingCart,
+  Transporte: Bus,
+  Vivienda: Home,
+  Ocio: Tv,
+  Salud: HeartPulse,
+  Educación: GraduationCap,
+  Suscripciones: Tv,
+  Ropa: Shirt,
+  Viajes: Plane,
+  Tecnología: Smartphone,
+  Deporte: Dumbbell,
 }
+
+const getCategoryIcon = (category: string, type: TxType) =>
+  CATEGORY_ICONS[category] ?? (type === "income" ? ArrowUpRight : ArrowDownLeft)
 
 type FilterType = "all" | "income" | "expense"
 type FilterPeriod = "month" | "3months" | "all"
@@ -87,15 +85,23 @@ function exportCsv(txs: Tx[]) {
 // DeleteConfirmModal — confirmation dialog for deleting transactions
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function DeleteConfirmModal({ tx, onConfirm, onClose, isDeleting }: {
+export function DeleteConfirmModal({
+  tx,
+  onClose,
+  onConfirm,
+  isDeleting,
+  currencySymbol,
+}: {
   tx: Tx
-  onConfirm: () => Promise<void> | void
   onClose: () => void
+  onConfirm: () => Promise<void> | void
   isDeleting?: boolean
+  currencySymbol?: string
 }) {
   const isIncome = tx.type === "income"
+  const isInvestment = isInvestmentTx(tx)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
       role="dialog" aria-modal="true" aria-label="Confirmar eliminación" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl bg-card p-6 shadow-xl border border-border">
         <div className="flex items-center gap-3">
@@ -111,8 +117,8 @@ export function DeleteConfirmModal({ tx, onConfirm, onClose, isDeleting }: {
         <div className="mt-4 rounded-2xl bg-secondary/50 p-3 text-xs">
           <p className="font-semibold text-foreground">{tx.name}</p>
           <p className="mt-0.5 text-muted-foreground">{tx.category} · {formatDate(tx.occurredAt)}</p>
-          <p className={`mt-1 font-bold ${isIncome ? "text-positive" : "text-foreground"}`}>
-            {isIncome ? "+" : "-"}${tx.amount.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <p className={`mt-1 font-bold tabular-nums ${isIncome ? "text-positive" : "text-foreground"}`}>
+            {isInvestment && !isIncome ? fmtCurrency(tx.amount, currencySymbol) : fmtSignedCurrency(isIncome ? tx.amount : -tx.amount, currencySymbol)}
           </p>
         </div>
 
@@ -361,13 +367,22 @@ export function TransactionForm({ initial, defaultYear, defaultCategory, onSubmi
 
 const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
-export function RecentTransactions({ transactions, showAll = false, typeFilter, selectedYear, defaultCategory }: {
+export function RecentTransactions({
+  transactions,
+  showAll = false,
+  typeFilter,
+  selectedYear,
+  defaultCategory,
+  currencySymbol,
+}: {
   transactions: Tx[]
   showAll?: boolean
   typeFilter?: FilterType
   selectedYear?: number
   defaultCategory?: string
+  currencySymbol?: string
 }) {
+  const { symbol: resolvedSym } = useCurrency(currencySymbol)
   const now = new Date()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Tx | undefined>(undefined)
@@ -496,6 +511,21 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
 
   const periodLabel = filterPeriod === "month" ? "este mes" : filterPeriod === "3months" ? "los últimos 3 meses" : "todo el historial"
 
+  const typeFilterButtons = !typeFilter && (
+    <div className="flex gap-2">
+      {(["all", "income", "expense"] as const).map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => { setFilterType(t); setCurrentPage(1) }}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+        >
+          {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <section className="rounded-3xl bg-card p-5 shadow-sm">
       {/* Header */}
@@ -573,31 +603,14 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
               )}
             </div>
 
-            {/* Type filter — only visible in all-types view */}
-            {!typeFilter && (
-              <div className="flex gap-2">
-                {(["all", "income", "expense"] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => { setFilterType(t); setCurrentPage(1) }}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
-                    {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
-                  </button>
-                ))}
-              </div>
-            )}
+            {typeFilterButtons}
           </div>
         )}
 
         {/* Dashboard compact view: relative period buttons */}
         {!showAll && !typeFilter && (
           <div className="flex flex-wrap gap-2 items-center justify-between">
-            <div className="flex gap-2">
-              {(["all", "income", "expense"] as const).map((t) => (
-                <button key={t} type="button" onClick={() => { setFilterType(t); setCurrentPage(1) }}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
-                  {t === "all" ? "Todos" : t === "income" ? "Ingresos" : "Gastos"}
-                </button>
-              ))}
-            </div>
+            {typeFilterButtons}
             <div className="flex gap-2 items-center">
               {(["month", "3months", "all"] as const).map((p) => (
                 <button key={p} type="button" onClick={() => { setFilterPeriod(p); setSelectedIds([]); setCurrentPage(1) }}
@@ -642,6 +655,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
         <ul className="mt-4 flex flex-col divide-y divide-border">
           {displayList.map((t) => {
             const isIncome = t.type === "income"
+            const isInvestment = isInvestmentTx(t)
             const isSelected = selectedIds.includes(t.id)
             const Icon = getCategoryIcon(t.category, t.type)
             return (
@@ -651,15 +665,31 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
                     ? <CheckSquare className="h-4 w-4 text-primary shrink-0" />
                     : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
                 </button>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isIncome ? "bg-positive/10 text-positive" : "bg-destructive/10 text-destructive"}`} aria-hidden="true">
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    isIncome
+                      ? "bg-positive/10 text-positive"
+                      : isInvestment
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                  aria-hidden="true"
+                >
                   <Icon className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-semibold ${isIncome ? "text-positive" : "text-destructive"}`}>{t.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-foreground">{t.name}</p>
+                    {isInvestment && (
+                      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-500 shrink-0">
+                        Inversión
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">{t.category} · {formatDate(t.occurredAt)}</p>
                 </div>
-                <span className={`text-sm font-bold ${isIncome ? "text-positive" : "text-foreground"}`}>
-                  {isIncome ? "+" : "-"}${t.amount.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <span className={`text-sm font-bold tabular-nums ${isIncome ? "text-positive" : "text-foreground"}`}>
+                  {isInvestment && !isIncome ? fmtCurrency(t.amount, resolvedSym) : fmtSignedCurrency(isIncome ? t.amount : -t.amount, resolvedSym)}
                 </span>
                 <div className="flex items-center gap-1 opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">
                   <button type="button" onClick={() => { setEditing(t); setFormOpen(true) }} aria-label={`Editar ${t.name}`}
@@ -784,6 +814,7 @@ export function RecentTransactions({ transactions, showAll = false, typeFilter, 
         <DeleteConfirmModal
           tx={deletingTx}
           isDeleting={pending}
+          currencySymbol={resolvedSym}
           onConfirm={async () => {
             await handleDelete(deletingTx.id)
             setDeletingTx(null)

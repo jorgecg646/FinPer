@@ -14,9 +14,11 @@ import {
   Edit2,
   Check,
   Target,
+  Newspaper,
 } from "lucide-react"
 import type { StockPosition } from "@/app/actions"
-import { CURRENCY_SYMBOLS, getFxPair, getTradingViewLogoUrl, fmtCurrency } from "@/lib/format"
+import { CURRENCY_SYMBOLS, getFxPair, getTradingViewLogoUrl, fmtCurrency, fmtSignedCurrency } from "@/lib/format"
+import { useVisibilityPolling } from "@/lib/hooks"
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -59,103 +61,107 @@ export const SUGGESTIONS = [
 ]
 
 export async function fetchQuote(symbol: string): Promise<StockQuote> {
-  const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" })
+  const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol)}`)
   const json = await res.json()
   if (!res.ok || json.error) throw new Error(json.error ?? "Error de red")
   return json as StockQuote
 }
 
-const fmtN = (n: number, sym = "", d = 2) => fmtCurrency(n, sym, d, d)
+export async function fetchQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
+  if (symbols.length === 0) return {}
+  const res = await fetch(`/api/stock-price?symbols=${encodeURIComponent(symbols.join(","))}`)
+  const json = await res.json()
+  if (!res.ok || json.error) throw new Error(json.error ?? "Error de red")
+  return json as Record<string, StockQuote>
+}
 
-// ─── Portfolio Position ───────────────────────────────────────────────────────
+// ─── Portfolio Position Breakdown ─────────────────────────────────────────────
 
 export function PortfolioPosition({
-  shares, avgPrice, avgFxRate, currentPrice, currency, displayCurrency, conversionRate,
+  shares,
+  avgPrice,
+  avgFxRate,
+  currentPrice,
+  currency,
+  displayCurrency,
+  conversionRate,
 }: {
   shares: number
   avgPrice: number
-  avgFxRate?: number | null
+  avgFxRate: number | null
   currentPrice: number
   currency: string
   displayCurrency: string
   conversionRate: number
 }) {
+  const needsConv = currency !== displayCurrency
+  const nSym = CURRENCY_SYMBOLS[currency] ?? currency
+  const dSym = CURRENCY_SYMBOLS[displayCurrency] ?? displayCurrency
+  const fSym = dSym
+
+  // Native calculations
   const invNative = shares * avgPrice
   const curNative = shares * currentPrice
   const nPL = curNative - invNative
   const nPLPct = invNative > 0 ? (nPL / invNative) * 100 : 0
   const isNGain = nPL >= 0
 
-  const needsConv = displayCurrency !== currency && conversionRate > 0
-  const dSym = CURRENCY_SYMBOLS[displayCurrency] ?? displayCurrency
-  const nSym = CURRENCY_SYMBOLS[currency] ?? currency
-  const pFx = avgFxRate && avgFxRate > 0 ? avgFxRate : conversionRate > 0 ? conversionRate : 1
-  const cFx = conversionRate > 0 ? conversionRate : pFx
-
-  const invDisp = needsConv ? invNative * pFx : invNative
-  const curDisp = needsConv ? curNative * cFx : curNative
+  // FX calculations
+  const buyFx = avgFxRate && avgFxRate > 0 ? avgFxRate : conversionRate
+  const invDisp = invNative * buyFx
+  const curDisp = curNative * conversionRate
   const totPL = curDisp - invDisp
   const totPct = invDisp > 0 ? (totPL / invDisp) * 100 : 0
   const isTotGain = totPL >= 0
-  const fxImp = curNative * (cFx - pFx)
-  const fxPct = pFx > 0 ? ((cFx - pFx) / pFx) * 100 : 0
-  const fSym = needsConv ? dSym : nSym
+
+  // FX impact
+  const fxImp = curNative * (conversionRate - buyFx)
+  const fxPct = buyFx > 0 ? ((conversionRate - buyFx) / buyFx) * 100 : 0
 
   return (
-    <div className={`mt-2 rounded-xl p-3 border ${isTotGain ? "bg-positive/5 border-positive/20" : "bg-destructive/5 border-destructive/20"}`}>
-      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-1"><Target className="h-3 w-3" />Mi Posición</span>
-        {needsConv && <span className="text-[9px] font-semibold text-muted-foreground/80">FX: 1 {currency} = {cFx.toFixed(4)} {displayCurrency}</span>}
-      </p>
+    <div className="flex flex-col gap-1.5 pt-2 border-t border-border/30">
+      <div className="flex justify-between text-xs">
+        <span className="text-muted-foreground">Capital invertido</span>
+        <span className="font-bold text-foreground tabular-nums">
+          {fmtCurrency(invDisp, fSym)}
+          {needsConv && <span className="text-muted-foreground/60 ml-1 text-[9px]">({fmtCurrency(invNative, nSym)})</span>}
+        </span>
+      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[10px] text-muted-foreground">
-          {shares.toLocaleString("es-ES", { maximumFractionDigits: 6 }).replace(/\.?0+$/, "")} acc. × {nSym}{avgPrice.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}/acc.
-        </p>
+      <div className="flex justify-between text-xs">
+        <span className="text-muted-foreground">Valor actual</span>
+        <span className="font-bold text-foreground tabular-nums">
+          {fmtCurrency(curDisp, fSym)}
+          {needsConv && <span className="text-muted-foreground/60 ml-1 text-[9px]">({fmtCurrency(curNative, nSym)})</span>}
+        </span>
+      </div>
 
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Capital invertido</span>
-          <span className="font-bold text-foreground tabular-nums">
-            {fmtN(invDisp, fSym)}
-            {needsConv && <span className="text-muted-foreground/60 ml-1 text-[9px]">({fmtN(invNative, nSym)})</span>}
-          </span>
-        </div>
-
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Valor actual</span>
-          <span className="font-bold text-foreground tabular-nums">
-            {fmtN(curDisp, fSym)}
-            {needsConv && <span className="text-muted-foreground/60 ml-1 text-[9px]">({fmtN(curNative, nSym)})</span>}
-          </span>
-        </div>
-
-        {needsConv && (
-          <div className="my-1 rounded-lg bg-background/60 p-2 flex flex-col gap-1 text-[11px] border border-border/40">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground font-medium flex items-center gap-1">
-                <span>📈 Rendimiento activo</span><span className="text-[9px] text-muted-foreground/60">({currency})</span>
-              </span>
-              <span className={`font-bold tabular-nums ${isNGain ? "text-positive" : "text-destructive"}`}>
-                {isNGain ? "+" : ""}{fmtN(nPL, nSym)} <span className="text-[10px]">({isNGain ? "+" : ""}{nPLPct.toFixed(2)}%)</span>
-              </span>
-            </div>
-            <div className="flex justify-between items-center border-t border-border/30 pt-1">
-              <span className="text-muted-foreground font-medium flex items-center gap-1">
-                <span>💱 Impacto Divisa (FX)</span><span className="text-[9px] text-muted-foreground/60">({currency}→{displayCurrency})</span>
-              </span>
-              <span className={`font-bold tabular-nums ${fxImp >= 0 ? "text-positive" : "text-destructive"}`}>
-                {fxImp >= 0 ? "+" : ""}{fmtN(fxImp, dSym)} <span className="text-[10px]">({fxImp >= 0 ? "+" : ""}{fxPct.toFixed(2)}%)</span>
-              </span>
-            </div>
+      {needsConv && (
+        <div className="my-1 rounded-lg bg-background/60 p-2 flex flex-col gap-1 text-[11px] border border-border/40">
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground font-medium flex items-center gap-1">
+              <span>📈 Rendimiento activo</span><span className="text-[9px] text-muted-foreground/60">({currency})</span>
+            </span>
+            <span className={`font-bold tabular-nums ${isNGain ? "text-positive" : "text-destructive"}`}>
+              {fmtSignedCurrency(nPL, nSym)} <span className="text-[10px]">({isNGain ? "+" : ""}{nPLPct.toFixed(2)}%)</span>
+            </span>
           </div>
-        )}
-
-        <div className="flex justify-between text-xs border-t border-border/30 pt-1">
-          <span className="font-semibold text-muted-foreground">Rentabilidad Total</span>
-          <span className={`font-extrabold tabular-nums ${isTotGain ? "text-positive" : "text-destructive"}`}>
-            {isTotGain ? "+" : ""}{fmtN(totPL, fSym)} <span className="font-bold">({isTotGain ? "+" : ""}{totPct.toFixed(2)}%)</span>
-          </span>
+          <div className="flex justify-between items-center border-t border-border/30 pt-1">
+            <span className="text-muted-foreground font-medium flex items-center gap-1">
+              <span>💱 Impacto Divisa (FX)</span><span className="text-[9px] text-muted-foreground/60">({currency}→{displayCurrency})</span>
+            </span>
+            <span className={`font-bold tabular-nums ${fxImp >= 0 ? "text-positive" : "text-destructive"}`}>
+              {fmtSignedCurrency(fxImp, dSym)} <span className="text-[10px]">({fxImp >= 0 ? "+" : ""}{fxPct.toFixed(2)}%)</span>
+            </span>
+          </div>
         </div>
+      )}
+
+      <div className="flex justify-between text-xs border-t border-border/30 pt-1">
+        <span className="font-semibold text-muted-foreground">Rentabilidad Total</span>
+        <span className={`font-extrabold tabular-nums ${isTotGain ? "text-positive" : "text-destructive"}`}>
+          {fmtSignedCurrency(totPL, fSym)} <span className="font-bold">({isTotGain ? "+" : ""}{totPct.toFixed(2)}%)</span>
+        </span>
       </div>
     </div>
   )
@@ -240,7 +246,15 @@ export function PositionForm({
 // ─── Ticker Card ──────────────────────────────────────────────────────────────
 
 export function TickerCard({
-  position, onRemove, onUpdate, onPriceLoaded, displayCurrency, fxRates,
+  position,
+  onRemove,
+  onUpdate,
+  onPriceLoaded,
+  displayCurrency,
+  fxRates,
+  quote: externalQuote,
+  status: externalStatus,
+  onRefresh,
 }: {
   position: StockPosition
   onRemove: () => void
@@ -248,8 +262,11 @@ export function TickerCard({
   onPriceLoaded: (symbol: string, price: number, currency: string) => void
   displayCurrency: string
   fxRates: Record<string, number>
+  quote?: StockQuote | null
+  status?: "idle" | "loading" | "ok" | "error"
+  onRefresh?: () => Promise<void> | void
 }) {
-  const [state, setState] = useState<QuoteState>({ status: "idle" })
+  const [internalState, setInternalState] = useState<QuoteState>({ status: "idle" })
   const [editing, setEditing] = useState(false)
   const [rotating, setRotating] = useState(false)
   const [logoError, setLogoError] = useState(false)
@@ -257,25 +274,31 @@ export function TickerCard({
 
   useEffect(() => { setLogoError(false) }, [position.symbol])
 
-  const load = useCallback(async () => {
-    setState({ status: "loading" })
+  const state: QuoteState = externalQuote
+    ? { status: "ok", data: externalQuote }
+    : externalStatus === "loading"
+    ? { status: "loading" }
+    : externalStatus === "error"
+    ? { status: "error", message: "Error al cargar cotización" }
+    : internalState
+
+  const handleRefresh = useCallback(async () => {
     setRotating(true)
     try {
-      const data = await fetchQuote(position.symbol)
-      setState({ status: "ok", data })
-      onPriceLoaded(position.symbol, data.price, data.currency)
+      if (onRefresh) {
+        await onRefresh()
+      } else {
+        setInternalState({ status: "loading" })
+        const data = await fetchQuote(position.symbol)
+        setInternalState({ status: "ok", data })
+        onPriceLoaded(position.symbol, data.price, data.currency)
+      }
     } catch (e) {
-      setState({ status: "error", message: e instanceof Error ? e.message : "Error desconocido" })
+      setInternalState({ status: "error", message: e instanceof Error ? e.message : "Error desconocido" })
     } finally {
       setTimeout(() => setRotating(false), 600)
     }
-  }, [position.symbol, onPriceLoaded])
-
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 60_000)
-    return () => clearInterval(interval)
-  }, [load])
+  }, [onRefresh, position.symbol, onPriceLoaded])
 
   const hasPos = position.shares != null && position.avgPrice != null && position.shares > 0 && position.avgPrice > 0
   const isPos = state.status === "ok" ? state.data.changePercent >= 0 : null
@@ -283,7 +306,7 @@ export function TickerCard({
 
   return (
     <>
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-secondary/30 p-4 transition-all hover:border-primary/30 hover:bg-secondary/50">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-all hover:border-border/80 hover:bg-card/90 dark:hover:bg-[#181a20]">
         <div className="flex items-start justify-between gap-2">
           <div onClick={() => setShowChartModal(true)} title="Haz clic para ver gráfico interactivo" className="flex items-center gap-2.5 min-w-0 cursor-pointer group">
             {state.status === "ok" && state.data.logoid && !logoError && getTradingViewLogoUrl(state.data.logoid) ? (
@@ -304,7 +327,7 @@ export function TickerCard({
           </div>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            <button type="button" onClick={load} disabled={state.status === "loading"} aria-label="Actualizar" className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer disabled:opacity-50">
+            <button type="button" onClick={handleRefresh} disabled={state.status === "loading"} aria-label="Actualizar" className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer disabled:opacity-50">
               <RefreshCw className={`h-3.5 w-3.5 ${rotating ? "animate-spin" : ""}`} />
             </button>
             <button type="button" onClick={() => setEditing((v) => !v)} title="Editar posición" aria-label="Editar" className={`rounded-full p-1.5 transition-colors cursor-pointer ${editing ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
@@ -507,6 +530,54 @@ export const TYPE_LABEL: Record<string, string> = {
   stock: "Acción", crypto: "Cripto", fund: "Fondo", futures: "Futuros", forex: "Forex", cfd: "CFD", index: "Índice", economic: "Económico", dr: "DR",
 }
 
+function SymbolRow({
+  label,
+  sub,
+  logoid,
+  badge,
+  onSelect,
+}: {
+  label: string
+  sub: string
+  logoid?: string
+  badge?: string
+  onSelect: () => void
+}) {
+  const logo = getTradingViewLogoUrl(logoid)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="flex items-center justify-between gap-2 rounded-xl border border-border/50 bg-secondary/30 p-2 text-left hover:bg-primary/10 hover:border-primary/40 cursor-pointer"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logo}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded-md object-contain bg-secondary/60 p-0.5"
+            onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none" }}
+          />
+        ) : (
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary/60 text-muted-foreground text-xs font-bold">
+            {label[0]}
+          </div>
+        )}
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-bold text-foreground truncate">{label}</span>
+          <span className="text-[10px] font-mono text-muted-foreground">{sub}</span>
+        </div>
+      </div>
+      {badge && (
+        <span className="text-[9px] font-bold text-muted-foreground bg-secondary rounded px-1.5 py-0.5">
+          {badge}
+        </span>
+      )}
+    </button>
+  )
+}
+
 export function AddSymbolModal({
   onAdd, onClose,
 }: {
@@ -598,49 +669,29 @@ export function AddSymbolModal({
           {!query.trim() ? (
             <>
               <p className="text-[11px] font-semibold text-muted-foreground mb-1">Sugerencias populares</p>
-              {SUGGESTIONS.map((s) => {
-                const logo = getTradingViewLogoUrl(s.logoid)
-                return (
-                  <button key={s.symbol} type="button" onClick={() => handleSelect(s.symbol, s.label)} className="flex items-center justify-between rounded-xl border border-border/50 bg-secondary/30 p-2 text-left hover:bg-primary/10 hover:border-primary/40 cursor-pointer">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {logo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logo} alt="" className="h-6 w-6 shrink-0 rounded-md object-contain bg-secondary/60 p-0.5" onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none" }} />
-                      ) : (
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary/60 text-muted-foreground text-xs font-bold">{s.label[0]}</div>
-                      )}
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-bold text-foreground truncate">{s.label}</span>
-                        <span className="text-[10px] font-mono text-muted-foreground">{s.symbol}</span>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
+              {SUGGESTIONS.map((s) => (
+                <SymbolRow
+                  key={s.symbol}
+                  label={s.label}
+                  sub={s.symbol}
+                  logoid={s.logoid}
+                  onSelect={() => handleSelect(s.symbol, s.label)}
+                />
+              ))}
             </>
           ) : results.length === 0 && !searching ? (
             <p className="text-center text-xs text-muted-foreground py-6">Sin resultados para &ldquo;{query}&rdquo;</p>
           ) : (
-            results.map((r) => {
-              const logo = getTradingViewLogoUrl(r.logoid)
-              return (
-                <button key={r.id} type="button" onClick={() => handleSelect(r.id, r.description || r.symbol)} className="flex items-center justify-between gap-2 rounded-xl border border-border/50 bg-secondary/30 p-2 text-left hover:bg-primary/10 hover:border-primary/40 cursor-pointer">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {logo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={logo} alt="" className="h-6 w-6 shrink-0 rounded-md object-contain bg-secondary/60 p-0.5" onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none" }} />
-                    ) : (
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary/60 text-muted-foreground text-xs font-bold">{(r.description || r.symbol)[0]}</div>
-                    )}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-foreground truncate">{r.description || r.symbol}</span>
-                      <span className="text-[10px] font-mono text-muted-foreground">{r.id}</span>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-bold text-muted-foreground bg-secondary rounded px-1.5 py-0.5">{r.exchange}</span>
-                </button>
-              )
-            })
+            results.map((r, idx) => (
+              <SymbolRow
+                key={`${r.id}-${r.exchange}-${idx}`}
+                label={r.description || r.symbol}
+                sub={r.id}
+                logoid={r.logoid}
+                badge={r.exchange}
+                onSelect={() => handleSelect(r.id, r.description || r.symbol)}
+              />
+            ))
           )}
         </div>
       </div>
@@ -648,356 +699,22 @@ export function AddSymbolModal({
   )
 }
 
-// ─── Spanish Tax Calculator ───────────────────────────────────────────────────
-
-export const TAX_BRACKETS = [
-  { limit: 6000, rate: 0.19, label: "Hasta 6.000 €" },
-  { limit: 44000, rate: 0.21, label: "6.000 € a 50.000 €" },
-  { limit: 150000, rate: 0.23, label: "50.000 € a 200.000 €" },
-  { limit: 100000, rate: 0.27, label: "200.000 € a 300.000 €" },
-  { limit: Infinity, rate: 0.28, label: "Más de 300.000 €" },
-]
-
-export function calculateSpanishTax(gain: number) {
-  if (gain <= 0) return { tax: 0, effectiveRate: 0, breakdown: [] }
-  let remaining = gain, totalTax = 0
-  const breakdown: { bracket: string; rate: number; taxable: number; tax: number }[] = []
-
-  for (const b of TAX_BRACKETS) {
-    if (remaining <= 0) break
-    const taxable = Math.min(remaining, b.limit)
-    const tax = taxable * b.rate
-    totalTax += tax
-    remaining -= taxable
-    breakdown.push({ bracket: b.label, rate: b.rate * 100, taxable, tax })
-  }
-  return { tax: totalTax, effectiveRate: (totalTax / gain) * 100, breakdown }
-}
-
-export function SpanishTaxExportCalculator({
-  items, displayCurrency,
-}: {
-  items: { symbol: string; label: string; currentDisp: number; investedDisp: number; plDisp: number; plPct: number }[]
-  displayCurrency: string
-}) {
-  const dispSym = CURRENCY_SYMBOLS[displayCurrency] ?? displayCurrency
-  const [customSales, setCustomSales] = useState<Record<string, number>>(() => Object.fromEntries(items.map((it) => [it.symbol, 100])))
-
-  const activeSaleItems = useMemo(() => items.filter((it) => (customSales[it.symbol] ?? 0) > 0), [items, customSales])
-
-  const { totalInvested, totalCurrent, totalGain, taxCalculation, netProfit } = useMemo(() => {
-    let inv = 0, cur = 0
-    items.forEach((it) => {
-      const pct = (customSales[it.symbol] ?? 0) / 100
-      if (pct > 0) { inv += it.investedDisp * pct; cur += it.currentDisp * pct }
-    })
-    const gain = cur - inv
-    const tax = calculateSpanishTax(gain)
-    return { totalInvested: inv, totalCurrent: cur, totalGain: gain, taxCalculation: tax, netProfit: gain - tax.tax }
-  }, [items, customSales])
-
-  const hasCrypto = activeSaleItems.some((it) => it.symbol.includes("BTC") || it.symbol.includes("ETH") || it.symbol.includes("BINANCE:"))
-  const hasStocks = activeSaleItems.some((it) => !hasCrypto)
-
-  return (
-    <div className="flex flex-col gap-4 bg-background/60 rounded-2xl p-4 border border-border/40 shadow-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
-        <div>
-          <h4 className="text-sm font-bold text-foreground flex items-center gap-2">🇪🇸 Calculadora Fiscal IRPF & Guía de Renta (España)</h4>
-          <p className="text-xs text-muted-foreground">Selecciona individualmente qué acciones y qué % vas a vender</p>
-        </div>
-        <button type="button" onClick={() => window.print()} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 flex items-center gap-2 cursor-pointer shadow-xs self-start sm:self-auto">
-          <span>📄 Descargar Informe PDF / Imprimir</span>
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-3 bg-secondary/30 p-3.5 rounded-xl border border-border/30 text-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/20 pb-2">
-          <span className="font-bold text-foreground text-xs">⚙️ Selección de Venta Individual:</span>
-          <div className="flex items-center gap-1.5 self-start sm:self-auto">
-            <button type="button" onClick={() => setCustomSales(Object.fromEntries(items.map((it) => [it.symbol, 100])))} className="px-2 py-1 rounded-lg bg-card border border-border/40 hover:bg-secondary text-[10px] font-bold text-foreground cursor-pointer">Vender 100%</button>
-            <button type="button" onClick={() => setCustomSales(Object.fromEntries(items.map((it) => [it.symbol, 50])))} className="px-2 py-1 rounded-lg bg-card border border-border/40 hover:bg-secondary text-[10px] font-bold text-foreground cursor-pointer">Vender 50%</button>
-            <button type="button" onClick={() => setCustomSales(Object.fromEntries(items.map((it) => [it.symbol, 0])))} className="px-2 py-1 rounded-lg bg-card border border-border/40 hover:bg-secondary text-[10px] font-bold text-muted-foreground hover:text-foreground cursor-pointer">Desactivar</button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
-          {items.map((it) => {
-            const pct = customSales[it.symbol] ?? 0
-            const isSelling = pct > 0
-            const sCur = it.currentDisp * (pct / 100), sInv = it.investedDisp * (pct / 100), sPL = sCur - sInv
-
-            return (
-              <div key={it.symbol} className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${isSelling ? "bg-card border-primary/40 shadow-2xs" : "bg-secondary/20 border-border/20 opacity-60"}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input type="checkbox" checked={isSelling} onChange={(e) => setCustomSales((prev) => ({ ...prev, [it.symbol]: e.target.checked ? 100 : 0 }))} className="rounded accent-primary h-3.5 w-3.5 cursor-pointer" />
-                    <span className="font-bold text-foreground truncate text-xs">{it.label}</span>
-                  </div>
-                  <span className="text-xs font-black tabular-nums text-primary">{pct}%</span>
-                </div>
-                <input type="range" min="0" max="100" step="5" value={pct} onChange={(e) => setCustomSales((prev) => ({ ...prev, [it.symbol]: parseInt(e.target.value, 10) }))} className="flex-1 accent-primary h-1.5 bg-secondary rounded-lg cursor-pointer" />
-                <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5">
-                  <span>Venta: <strong className="text-foreground">{dispSym}{sCur.toLocaleString("es-ES", { maximumFractionDigits: 0 })}</strong></span>
-                  <span className={`font-black tabular-nums ${sPL >= 0 ? "text-positive" : "text-destructive"}`}>{sPL >= 0 ? "+" : ""}{dispSym}{sPL.toLocaleString("es-ES", { maximumFractionDigits: 0 })}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div className="rounded-xl p-3 border bg-card border-border/40 flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-muted-foreground">Venta Total</span>
-          <span className="text-lg font-black text-foreground tabular-nums">{dispSym}{totalCurrent.toLocaleString("es-ES", { maximumFractionDigits: 2 })}</span>
-          <span className="text-[10px] text-muted-foreground/80 font-medium">Invertido: {dispSym}{totalInvested.toLocaleString("es-ES", { maximumFractionDigits: 2 })}</span>
-        </div>
-        <div className="rounded-xl p-3 border bg-card border-border/40 flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-muted-foreground">Ganancia Bruta</span>
-          <span className={`text-lg font-black tabular-nums ${totalGain >= 0 ? "text-positive" : "text-destructive"}`}>{totalGain >= 0 ? "+" : ""}{dispSym}{totalGain.toLocaleString("es-ES", { maximumFractionDigits: 2 })}</span>
-          <span className="text-[10px] text-muted-foreground/80 font-medium">Base Imponible Ahorro</span>
-        </div>
-        <div className="rounded-xl p-3 border bg-amber-500/5 border-amber-500/20 flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-amber-500">Estimación IRPF</span>
-          <span className="text-lg font-black text-amber-500 tabular-nums">{dispSym}{taxCalculation.tax.toLocaleString("es-ES", { maximumFractionDigits: 2 })}</span>
-          <span className="text-[10px] font-bold text-amber-500/90">Tipo Efectivo: {taxCalculation.effectiveRate.toFixed(2)}%</span>
-        </div>
-        <div className="rounded-xl p-3 border bg-emerald-500/5 border-emerald-500/20 flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-emerald-400">Beneficio Neto</span>
-          <span className="text-lg font-black text-emerald-400 tabular-nums">{dispSym}{netProfit.toLocaleString("es-ES", { maximumFractionDigits: 2 })}</span>
-          <span className="text-[10px] font-bold text-emerald-400/90">Limpio tras impuestos</span>
-        </div>
-      </div>
-
-      <div className="printable-report rounded-2xl p-5 bg-background border border-border/60 text-xs flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-border/40 pb-3">
-          <div>
-            <h5 className="font-extrabold text-foreground text-base">📋 Informe Fiscal IRPF & Guía de Renta (Modelo 100 - España)</h5>
-            <p className="text-xs text-muted-foreground mt-0.5">Resumen de operaciones y casillas exactas para la AEAT</p>
-          </div>
-          <span className="text-xs font-bold text-foreground bg-secondary/80 px-3 py-1 rounded-md border border-border/50 shrink-0">Ejercicio {new Date().getFullYear()}</span>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border border-border/40 bg-background/50 p-1 shadow-2xs">
-          <table className="w-full text-left border-collapse text-xs min-w-[540px]">
-            <thead>
-              <tr className="border-b border-border/60 text-muted-foreground font-bold bg-secondary/40">
-                <th className="py-2 px-3">Activo / Símbolo</th>
-                <th className="py-2 px-3 text-right">Valor Venta ({dispSym})</th>
-                <th className="py-2 px-3 text-right">Coste Adquisición ({dispSym})</th>
-                <th className="py-2 px-3 text-right">Ganancia / Pérdida ({dispSym})</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30 font-medium">
-              {activeSaleItems.map((it) => {
-                const pct = (customSales[it.symbol] ?? 0) / 100
-                const sCur = it.currentDisp * pct, sInv = it.investedDisp * pct, sPL = sCur - sInv
-                return (
-                  <tr key={it.symbol} className="hover:bg-secondary/20">
-                    <td className="py-2 px-3 font-bold text-foreground">{it.label} <span className="text-[10px] text-muted-foreground font-normal">({it.symbol})</span></td>
-                    <td className="py-2 px-3 text-right tabular-nums text-foreground font-semibold">{dispSym}{sCur.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{dispSym}{sInv.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className={`py-2 px-3 text-right tabular-nums font-bold ${sPL >= 0 ? "text-positive" : "text-destructive"}`}>{sPL >= 0 ? "+" : ""}{dispSym}{sPL.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border/30 pt-3">
-          <div className="p-2.5 rounded-xl bg-secondary/20 border border-border/40 flex flex-col gap-1">
-            <span className="font-bold text-foreground">1. Casillas de Declaración:</span>
-            {hasStocks && <p className="text-muted-foreground">• <strong>Acciones / ETFs:</strong> Casillas <strong>0326 a 0338</strong>.</p>}
-            {hasCrypto && <p className="text-muted-foreground">• <strong>Criptomonedas:</strong> Casillas <strong>1800 a 1804</strong>.</p>}
-          </div>
-          <div className="p-2.5 rounded-xl bg-secondary/20 border border-border/40 flex flex-col gap-1">
-            <span className="font-bold text-foreground">2. Compensación y Recompra:</span>
-            <p className="text-muted-foreground">• <strong>Compensación:</strong> Casillas <strong>0392 a 0404</strong> (hasta 25%).</p>
-            <p className="text-muted-foreground">• <strong>Regla 2 Meses:</strong> No recomprar 2 meses antes/después con pérdida.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Price Alerts & Macro Economic Calendar ────────────────────────────────────
-
-export interface MacroEvent {
-  id: string
-  title: string
-  variant: string
-  dateStr: string
-  timeStr: string
-  country: string
-  flag: string
-  impact: "HIGH" | "MEDIUM"
-  actual: string | null
-  actualRaw: number | null
-  forecast: string
-  forecastRaw: number | null
-  previous: string
-  previousRaw: number | null
-  isReleased: boolean
-  unit?: string
-}
-
-export interface EarningsItem {
-  symbol: string
-  name: string
-  nextEarningsDate: string
-  daysUntil: number
-  epsEstimate: string
-  urgency: "TODAY" | "WEEK" | "MONTH" | "LATER"
-}
-
-export function PriceAlertsMacroCalendar({ symbols }: { symbols: string[] }) {
-  const [macroEvents, setMacroEvents] = useState<MacroEvent[]>([])
-  const [loadingMacro, setLoadingMacro] = useState(true)
-  const [earnings, setEarnings] = useState<EarningsItem[]>([])
-  const [loadingEarnings, setLoadingEarnings] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/macro-calendar")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.events)) setMacroEvents(d.events) })
-      .catch(() => {})
-      .finally(() => setLoadingMacro(false))
-  }, [])
-
-  const symKey = symbols.join(",")
-  useEffect(() => {
-    if (!symKey) { setLoadingEarnings(false); return }
-    fetch(`/api/earnings?symbols=${encodeURIComponent(symKey)}`)
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.earnings)) setEarnings(d.earnings) })
-      .catch(() => {})
-      .finally(() => setLoadingEarnings(false))
-  }, [symKey])
-
-  return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-150">
-      <div className="rounded-2xl bg-gradient-to-br from-card via-background to-amber-950/10 p-4 border border-amber-500/20 shadow-md">
-        <div className="flex items-center justify-between border-b border-border/30 pb-3 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">📅</span>
-            <div>
-              <h3 className="text-sm font-extrabold text-foreground">Calendario Macroeconómico Semanal & Eventos en Directo</h3>
-              <p className="text-xs text-muted-foreground">Datos semanales en tiempo real de IPC, tipos Fed/BCE y mercado laboral</p>
-            </div>
-          </div>
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30">API EN DIRECTO 🟢</span>
-        </div>
-
-        {loadingMacro ? (
-          <div className="flex items-center justify-center p-8 gap-3 text-xs text-muted-foreground animate-pulse">
-            <span className="h-3 w-3 rounded-full bg-amber-500 animate-ping" /><span>Cargando eventos macroeconómicos…</span>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {macroEvents.map((evt) => {
-              const isReleased = evt.isReleased || !!evt.actual
-              const isToday = evt.dateStr === "HOY"
-
-              return (
-                <div key={evt.id} className={`flex flex-col justify-between p-3 rounded-xl border transition-all gap-2 ${isReleased ? isToday ? "bg-gradient-to-br from-emerald-500/10 via-secondary/40 to-card border-emerald-500/50" : "bg-secondary/40 border-emerald-500/30" : "bg-secondary/30 border-border/40 hover:border-amber-500/40"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-black flex items-center gap-1.5 text-foreground">
-                      <span>{evt.flag}</span><span className="truncate max-w-[130px]">{evt.country}</span>
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {evt.variant && <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/30">{evt.variant}</span>}
-                      {isReleased ? (
-                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/40">{isToday ? "🟢 PUBLICADO HOY" : "🟢 PUBLICADO"}</span>
-                      ) : (
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${evt.impact === "HIGH" ? "bg-red-500/10 text-red-500 border-red-500/30" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/30"}`}>
-                          {evt.impact === "HIGH" ? "🔴 ALTO" : "🟡 MEDIO"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-xs font-bold text-foreground leading-snug line-clamp-2">{evt.title}</p>
-
-                  {isReleased && evt.actual ? (
-                    <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 mt-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">Dato Real:</span>
-                        <span className="text-sm font-black text-emerald-400 tabular-nums">{evt.actual}</span>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1.5">
-                        {evt.forecast && evt.forecast !== "Pendiente" && <span>Prev: <strong className="text-foreground">{evt.forecast}</strong></span>}
-                        {evt.previous && evt.previous !== "N/D" && <span>· Ant: {evt.previous}</span>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-border/20 mt-1">
-                      <span className="font-extrabold text-amber-400">⏱️ {evt.dateStr} · {evt.timeStr}</span>
-                      <span className="text-muted-foreground font-semibold">Prev: <strong className="text-foreground">{evt.forecast}</strong></span>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-2xl bg-gradient-to-br from-card via-background to-emerald-950/10 p-4 border border-emerald-500/20 shadow-md">
-        <div className="flex items-center justify-between border-b border-border/30 pb-3 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">📈</span>
-            <div>
-              <h3 className="text-sm font-extrabold text-foreground">Próximos Resultados Trimestrales de tu Cartera</h3>
-              <p className="text-xs text-muted-foreground">Fecha de publicación de resultados vía TradingView</p>
-            </div>
-          </div>
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">API EN DIRECTO 🟢</span>
-        </div>
-
-        {loadingEarnings ? (
-          <div className="flex items-center justify-center p-8 gap-3 text-xs text-muted-foreground animate-pulse">
-            <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping" /><span>Consultando fechas de resultados…</span>
-          </div>
-        ) : earnings.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-6">No se encontraron próximas fechas de resultados para tus acciones.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {earnings.map((item) => (
-              <div key={item.symbol} className="p-3 rounded-xl border border-border/40 bg-secondary/20 transition-all flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-black text-foreground">{item.symbol}</p>
-                    <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[150px]">{item.name}</p>
-                  </div>
-                  <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-background/60 border border-border/40 text-muted-foreground">
-                    {item.urgency === "TODAY" ? "🔴 HOY" : item.urgency === "WEEK" ? "🟡 Esta semana" : "🟢 Próximamente"}
-                  </span>
-                </div>
-                <div className="border-t border-border/20 pt-2 flex flex-col gap-1 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground font-semibold">📅 Fecha:</span><span className="font-extrabold text-foreground">{item.nextEarningsDate}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground font-semibold">⏳ Faltan:</span><span className="font-black text-emerald-400">{item.daysUntil === 0 ? "¡HOY!" : `${item.daysUntil} días`}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+// ─── Re-exports of Extracted Components (Code-Split) ──────────────────────────
+export * from "./spanish-tax-calculator"
+export * from "./macro-calendar-widget"
 
 // ─── Financial News Ticker Bar ────────────────────────────────────────────────
 
 export function FinancialNewsTickerBar() {
   const [news, setNews] = useState<{ id: string; title: string; category: string; timeAgo: string; url: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("TODAS")
 
   const fetchNews = useCallback(async () => {
     try {
-      const res = await fetch("/api/news", { cache: "no-store" })
+      const res = await fetch("/api/news")
       const data = await res.json()
       if (Array.isArray(data.news)) setNews(data.news)
     } catch {} finally {
@@ -1007,9 +724,22 @@ export function FinancialNewsTickerBar() {
 
   useEffect(() => {
     fetchNews()
-    const interval = setInterval(fetchNews, 300_000)
-    return () => clearInterval(interval)
   }, [fetchNews])
+
+  useVisibilityPolling(fetchNews, 300_000)
+
+  const categories = useMemo(() => {
+    const list = Array.from(new Set(news.map((n) => n.category)))
+    return ["TODAS", ...list]
+  }, [news])
+
+  const filteredNews = useMemo(() => {
+    return news.filter((item) => {
+      const matchesCategory = selectedCategory === "TODAS" || item.category === selectedCategory
+      const matchesSearch = !searchQuery || item.title.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesCategory && matchesSearch
+    })
+  }, [news, selectedCategory, searchQuery])
 
   if (loading && news.length === 0) {
     return (
@@ -1031,11 +761,10 @@ export function FinancialNewsTickerBar() {
     "🪙 CRYPTO": "bg-emerald-500/15 border-emerald-500/40 text-emerald-400",
     "💼 BUSINESS / EARNINGS": "bg-rose-500/15 border-rose-500/40 text-rose-400",
     "🧠 TOP INVESTORS": "bg-indigo-500/15 border-indigo-500/40 text-indigo-400",
-    "📈 MARKETS": "bg-sky-500/15 border-sky-500/40 text-sky-400",
   }
 
   function getCategoryBadgeStyle(cat: string) {
-    return BADGE_STYLES[cat] || "bg-sky-500/15 border-sky-500/40 text-sky-400"
+    return BADGE_STYLES[cat] || "bg-blue-500/15 border-blue-500/40 text-blue-400"
   }
 
   function renderCategoryIcon(cat: string) {
@@ -1099,10 +828,7 @@ export function FinancialNewsTickerBar() {
     if (cat.includes("MACRO") || cat.includes("CPI")) {
       return <span className="text-xs shrink-0" role="img" aria-label="Macro">📊</span>
     }
-    if (cat.includes("BUSINESS") || cat.includes("EARNINGS")) {
-      return <span className="text-xs shrink-0" role="img" aria-label="Business">💼</span>
-    }
-    return <span className="text-xs shrink-0" role="img" aria-label="Markets">📈</span>
+    return <span className="text-xs shrink-0" role="img" aria-label="Business">💼</span>
   }
 
   function cleanCategoryText(cat: string) {
@@ -1146,6 +872,142 @@ export function FinancialNewsTickerBar() {
           ))}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card dark:bg-[#1a1c23] hover:bg-secondary text-foreground text-xs font-bold border border-border transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0 shadow-2xs cursor-pointer"
+        title="Ver todas las noticias en lista completa"
+      >
+        <Newspaper className="h-3.5 w-3.5 text-primary" />
+        <span className="font-bold">Ver todas</span>
+        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/15 text-primary font-black tabular-nums">
+          {news.length}
+        </span>
+      </button>
+
+      {/* Modal Ver todas las noticias */}
+      {showModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[88vh] flex flex-col bg-card rounded-3xl border border-border shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                  <Newspaper className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
+                    Noticias de Mercados en Tiempo Real
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {filteredNews.length} {filteredNews.length === 1 ? "noticia disponible" : "noticias disponibles"} · Últimas 12 horas
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                aria-label="Cerrar modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Search & Categories Bar */}
+            <div className="p-4 sm:px-5 border-b border-border flex flex-col gap-3 bg-muted/20">
+              {/* Search input */}
+              <div className="relative w-full">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar noticias por palabra clave (ej: Fed, Ibex, Nvidia, Inflación)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-9 py-2 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Category pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {categories.map((cat) => {
+                  const isSelected = selectedCategory === cat
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground shadow-xs scale-[1.02]"
+                          : "bg-muted text-muted-foreground border border-border hover:bg-muted/80 hover:text-foreground"
+                      }`}
+                    >
+                      {cat !== "TODAS" && renderCategoryIcon(cat)}
+                      <span>{cat === "TODAS" ? `Todas (${news.length})` : cleanCategoryText(cat)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* News List */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-2.5 divide-y divide-border/40">
+              {filteredNews.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <span className="text-3xl mb-2">🔍</span>
+                  <p className="text-sm font-bold text-foreground">No se encontraron noticias</p>
+                  <p className="text-xs text-muted-foreground mt-1">Prueba con otra palabra clave o selecciona otra categoría.</p>
+                </div>
+              ) : (
+                filteredNews.map((item, idx) => (
+                  <a
+                    key={`${item.id}-${idx}`}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pt-2.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl hover:bg-muted/50 transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] border uppercase tracking-wider font-extrabold shrink-0 mt-0.5 ${getCategoryBadgeStyle(item.category)}`}>
+                        {renderCategoryIcon(item.category)}
+                        <span>{cleanCategoryText(item.category)}</span>
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-snug">
+                        {item.title}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pl-2">
+                      <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
+                        {item.timeAgo}
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

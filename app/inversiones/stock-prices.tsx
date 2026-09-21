@@ -1,23 +1,26 @@
 "use client"
 
-import { useState, useEffect, useCallback, useTransition } from "react"
+import { useState, useEffect, useCallback, useTransition, useRef } from "react"
 import nextDynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { BarChart2, Plus, Minus, Wallet } from "lucide-react"
 import { upsertStockPosition, deleteStockPosition } from "@/app/actions"
 import type { StockPosition } from "@/app/actions"
-import { CURRENCIES, CURRENCY_SYMBOLS, DISPLAY_CURRENCY_KEY, arcPath, getFxPair } from "@/lib/format"
+import { CURRENCIES, CURRENCY_SYMBOLS, DISPLAY_CURRENCY_KEY, getFxPair, fmtCurrency, fmtSignedCurrency, fmtPercent, getClientCurrency, setStoredCurrency } from "@/lib/format"
+import { useVisibilityPolling } from "@/lib/hooks"
+import { Pie } from "@visx/shape"
+import { Group } from "@visx/group"
 import {
   TickerCard,
   AddSymbolModal,
   FinancialNewsTickerBar,
+  fetchQuotes,
 } from "./stock-widgets"
+import type { StockQuote } from "./stock-widgets"
 import {
   ASSET_COLORS,
   CompoundGrowthChart,
   IndexComparisonChart,
-  detectSector,
-  SECTOR_CONFIGS,
 } from "./stock-charts"
 
 const TradingViewAdvancedWidget = nextDynamic(
@@ -25,11 +28,11 @@ const TradingViewAdvancedWidget = nextDynamic(
   { ssr: false, loading: () => <div className="h-64 rounded-2xl bg-secondary/30 animate-pulse" /> }
 )
 const SpanishTaxExportCalculator = nextDynamic(
-  () => import("./stock-widgets").then((mod) => mod.SpanishTaxExportCalculator),
+  () => import("./spanish-tax-calculator").then((mod) => mod.SpanishTaxExportCalculator),
   { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
 )
 const PriceAlertsMacroCalendar = nextDynamic(
-  () => import("./stock-widgets").then((mod) => mod.PriceAlertsMacroCalendar),
+  () => import("./macro-calendar-widget").then((mod) => mod.PriceAlertsMacroCalendar),
   { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-secondary/30 animate-pulse" /> }
 )
 const SectorRiskAnalysis = nextDynamic(
@@ -146,13 +149,18 @@ function PortfolioChartsPanel({
   const activeItem = itemsWithWeight.find((it) => it.symbol === hoveredSymbol)
 
   return (
-    <div className="mt-4 flex flex-col gap-4 border-t border-border/40 pt-4">
+    <div className="mt-4 flex flex-col gap-4 border-t border-border pt-4">
       {/* Header & Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
-          Análisis Visual de Cartera
-        </span>
-        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-xl border border-border/40 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+            Análisis Visual de Cartera
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            PREMIUM
+          </span>
+        </div>
+        <div className="flex items-center gap-1 bg-muted/60 dark:bg-[#1a1c23] p-1 rounded-xl border border-border dark:border-white/[0.06] flex-wrap">
           {(
             [
               { id: "allocation", label: "📊 Distribución" },
@@ -169,7 +177,7 @@ function PortfolioChartsPanel({
               onClick={() => setActiveTab(tab.id)}
               className={`px-2.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer text-[11px] flex-1 sm:flex-initial text-center ${
                 activeTab === tab.id
-                  ? "bg-card text-foreground shadow-xs"
+                  ? "bg-card dark:bg-[#252833] text-foreground shadow-xs border border-border dark:border-white/[0.1]"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -182,66 +190,75 @@ function PortfolioChartsPanel({
       {/* Tab 1: Allocation Donut & Horizontal P&L Bar Chart */}
       {activeTab === "allocation" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center animate-in fade-in duration-150">
-          <div className="flex flex-col bg-background/50 rounded-xl p-3 border border-border/30 gap-2">
-            <div className="flex items-center justify-between border-b border-border/20 pb-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-                Distribución por Activo
+          <div className="flex flex-col bg-card rounded-xl p-4 border border-border gap-3">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Allocation · Activos
               </span>
               {activeItem && (
-                <span className="text-[11px] font-bold text-primary truncate max-w-[150px]">
+                <span className="text-xs font-bold text-emerald-500 truncate max-w-[160px] tabular-nums">
                   {activeItem.label} ({activeItem.weightPct.toFixed(1)}%)
                 </span>
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="relative flex items-center justify-center shrink-0">
-                <svg width="130" height="130" viewBox="0 0 140 140" className="transform -rotate-90">
-                  {slices.map((slice) => {
-                    const isH = slice.symbol === hoveredSymbol
-                    return (
-                      <path
-                        key={slice.symbol}
-                        d={arcPath(70, 70, isH ? 66 : 62, slice.startAngle, slice.endAngle)}
-                        fill={slice.color}
-                        opacity={isH ? 1 : 0.85}
-                        className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredSymbol(slice.symbol)}
-                        onMouseLeave={() => setHoveredSymbol(null)}
-                      />
-                    )
-                  })}
-                  <circle cx="70" cy="70" r="42" fill="currentColor" className="text-background" />
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative shrink-0 flex justify-center items-center">
+                <svg width={170} height={170} viewBox="0 0 170 170" className="overflow-visible">
+                  <Group top={85} left={85}>
+                    <Pie
+                      data={itemsWithWeight}
+                      pieValue={(d) => d.currentDisp}
+                      outerRadius={75}
+                      innerRadius={52}
+                      padAngle={0.03}
+                      cornerRadius={4}
+                    >
+                      {(pie) =>
+                        pie.arcs.map((arc, i) => {
+                          const isH = arc.data.symbol === hoveredSymbol
+                          const arcPath = pie.path(arc) ?? ""
+                          return (
+                            <path
+                              key={arc.data.symbol || i}
+                              d={arcPath}
+                              fill={arc.data.color}
+                              opacity={hoveredSymbol === null || isH ? 1 : 0.35}
+                              className="cursor-pointer transition-all duration-200"
+                              onMouseEnter={() => setHoveredSymbol(arc.data.symbol)}
+                              onMouseLeave={() => setHoveredSymbol(null)}
+                            />
+                          )
+                        })
+                      }
+                    </Pie>
+                    <text x={0} y={-8} textAnchor="middle" fill="var(--muted-foreground)" fontSize={9.5} fontWeight={600} className="uppercase tracking-wider">
+                      {hoveredSymbol && activeItem ? activeItem.label : "Total Cartera"}
+                    </text>
+                    <text x={0} y={14} textAnchor="middle" fill="var(--foreground)" fontSize={16} fontWeight={800} className="tabular-nums">
+                      {fmtCurrency(hoveredSymbol && activeItem ? activeItem.currentDisp : totalCurrentValue, dispSym, 0, 0)}
+                    </text>
+                  </Group>
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                  <span className="text-sm font-extrabold text-foreground tabular-nums">
-                    {hoveredSymbol && activeItem
-                      ? `${activeItem.weightPct.toFixed(1)}%`
-                      : `${items.length}`}
-                  </span>
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">
-                    {hoveredSymbol ? "Peso" : "posiciones"}
-                  </span>
-                </div>
               </div>
 
-              <div className="flex flex-col gap-1.5 w-full overflow-y-auto max-h-36 pr-1">
+              <div className="flex flex-col gap-1.5 w-full overflow-y-auto max-h-40 pr-1">
                 {itemsWithWeight.map((it) => (
                   <div
                     key={it.symbol}
                     onMouseEnter={() => setHoveredSymbol(it.symbol)}
                     onMouseLeave={() => setHoveredSymbol(null)}
-                    className={`flex items-center justify-between text-xs p-1 rounded-lg transition-colors cursor-pointer ${
-                      it.symbol === hoveredSymbol ? "bg-primary/10" : "hover:bg-secondary/40"
+                    className={`flex items-center justify-between text-xs p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      it.symbol === hoveredSymbol ? "bg-muted dark:bg-[#252833] border border-border dark:border-white/[0.08]" : "hover:bg-muted/50 dark:hover:bg-[#1a1c23]"
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
-                      <span className="font-bold text-foreground truncate text-[11px]">{it.label}</span>
+                      <span className="font-semibold text-foreground truncate text-[11px]">{it.label}</span>
                     </div>
                     <div className="flex items-center gap-2 tabular-nums text-[11px]">
-                      <span className="font-semibold text-muted-foreground">{it.weightPct.toFixed(1)}%</span>
-                      <span className="font-bold text-foreground">{dispSym}{it.currentDisp.toLocaleString("es-ES", { maximumFractionDigits: 0 })}</span>
+                      <span className="font-medium text-muted-foreground">{it.weightPct.toFixed(1)}%</span>
+                      <span className="font-bold text-foreground">{fmtCurrency(it.currentDisp, dispSym, 0, 0)}</span>
                     </div>
                   </div>
                 ))}
@@ -249,9 +266,9 @@ function PortfolioChartsPanel({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 bg-background/50 rounded-xl p-3 border border-border/30 h-full justify-center">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-              Rentabilidad por Activo ({dispSym})
+          <div className="flex flex-col gap-2.5 bg-card rounded-xl p-4 border border-border h-full justify-center">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b border-white/[0.06] pb-2">
+              Rentabilidad por Posición ({dispSym})
             </p>
 
             <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
@@ -263,8 +280,8 @@ function PortfolioChartsPanel({
                     <div className="flex justify-between text-[11px]">
                       <span className="font-bold text-foreground truncate">{it.label}</span>
                       <span className={`font-extrabold tabular-nums ${isGain ? "text-positive" : "text-destructive"}`}>
-                        {isGain ? "+" : ""}{dispSym}{Math.abs(it.plDisp).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
-                        <span className="font-semibold text-[10px]">({isGain ? "+" : ""}{it.plPct.toFixed(2)}%)</span>
+                        {fmtSignedCurrency(it.plDisp, dispSym)}{" "}
+                        <span className="font-semibold text-[10px]">({fmtPercent(it.plPct, 2, true)})</span>
                       </span>
                     </div>
                     <PLBar isGain={isGain} pct={barPct} minPct={4} />
@@ -302,7 +319,7 @@ function PortfolioChartsPanel({
         <div className="animate-in fade-in duration-150">
           <CompoundGrowthChart
             initialValue={totalCurrentValue}
-            defaultReturnPct={totalPLPct}
+            defaultReturnPct={8}
             displayCurrency={displayCurrency}
           />
         </div>
@@ -338,6 +355,10 @@ export function StockPricesPanel({
   const [currentPrices, setCurrentPrices] = useState<
     Record<string, { price: number; currency: string }>
   >({})
+  const [quotes, setQuotes] = useState<Record<string, StockQuote>>({})
+  const [quoteStatuses, setQuoteStatuses] = useState<
+    Record<string, "idle" | "loading" | "ok" | "error">
+  >({})
   const [displayCurrency, setDisplayCurrency] = useState("EUR")
   const [fxRates, setFxRates] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<
@@ -347,23 +368,21 @@ export function StockPricesPanel({
   const router = useRouter()
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY)
-      if (saved && CURRENCIES.some((c) => c.code === saved)) {
-        setDisplayCurrency(saved)
-      }
-    } catch {
-      // ignore
+    setDisplayCurrency(getClientCurrency())
+    const handleCurrencyChanged = () => {
+      setDisplayCurrency(getClientCurrency())
+    }
+    window.addEventListener("finflow-currency-changed", handleCurrencyChanged)
+    window.addEventListener("storage", handleCurrencyChanged)
+    return () => {
+      window.removeEventListener("finflow-currency-changed", handleCurrencyChanged)
+      window.removeEventListener("storage", handleCurrencyChanged)
     }
   }, [])
 
   function handleCurrencyChange(code: string) {
     setDisplayCurrency(code)
-    try {
-      localStorage.setItem(DISPLAY_CURRENCY_KEY, code)
-    } catch {
-      // ignore
-    }
+    setStoredCurrency(code)
   }
 
   useEffect(() => {
@@ -376,6 +395,65 @@ export function StockPricesPanel({
     },
     []
   )
+
+  const positionsRef = useRef(positions)
+  positionsRef.current = positions
+
+  const fetchAllQuotes = useCallback(
+    async (customSymbols?: string[]) => {
+      const syms = customSymbols ?? positionsRef.current.map((p) => p.symbol)
+      if (syms.length === 0) return
+
+      setQuoteStatuses((prev) => {
+        const next = { ...prev }
+        syms.forEach((s) => {
+          next[s] = "loading"
+        })
+        return next
+      })
+
+      try {
+        const fetched = await fetchQuotes(syms)
+        setQuotes((prev) => ({ ...prev, ...fetched }))
+        setQuoteStatuses((prev) => {
+          const next = { ...prev }
+          syms.forEach((s) => {
+            next[s] = fetched[s] ? "ok" : "error"
+          })
+          return next
+        })
+
+        setCurrentPrices((prev) => {
+          const next = { ...prev }
+          Object.entries(fetched).forEach(([sym, q]) => {
+            if (q && q.price) {
+              next[sym] = { price: q.price, currency: q.currency }
+            }
+          })
+          return next
+        })
+      } catch {
+        setQuoteStatuses((prev) => {
+          const next = { ...prev }
+          syms.forEach((s) => {
+            next[s] = "error"
+          })
+          return next
+        })
+      }
+    },
+    []
+  )
+
+  const symbolsKey = positions.map((p) => p.symbol.toUpperCase()).sort().join(",")
+
+  useEffect(() => {
+    if (!symbolsKey) return
+    const syms = symbolsKey.split(",").filter(Boolean)
+    fetchAllQuotes(syms)
+  }, [symbolsKey, fetchAllQuotes])
+
+  useVisibilityPolling(fetchAllQuotes, 60_000, Boolean(symbolsKey))
 
   useEffect(() => {
     const currenciesToFetch = new Set<string>()
@@ -568,76 +646,45 @@ export function StockPricesPanel({
       </div>
 
       {showSummary && (
-        <div
-          className={`mt-4 rounded-2xl p-4 sm:p-5 border transition-all ${
-            isPLPositive
-              ? "bg-positive/5 border-positive/20 shadow-xs"
-              : "bg-destructive/5 border-destructive/20 shadow-xs"
-          }`}
-        >
-          <div className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/20 pb-2.5">
-            <span className="flex items-center gap-1.5 font-bold text-foreground">
-              <Wallet className="h-3.5 w-3.5 text-primary" />
-              Resumen de cartera · {portfolioSummary.count} posición
-              {portfolioSummary.count !== 1 ? "es" : ""} con datos
+        <div className="mt-4 rounded-2xl p-5 border border-border bg-card shadow-xs transition-all">
+          <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+            <span className="flex items-center gap-2 font-bold text-foreground">
+              <Wallet className="h-4 w-4 text-emerald-500" />
+              Resumen de Cartera · {portfolioSummary.count} posición{portfolioSummary.count !== 1 ? "es" : ""} activas
             </span>
-            <span className="text-[10px] font-bold text-muted-foreground bg-secondary/80 px-2.5 py-0.5 rounded-full border border-border/40 w-fit">
-              Mostrando en {displayCurrency} ({dispSym})
+            <span className="text-[10px] font-bold text-muted-foreground bg-muted dark:bg-[#20222a] px-2.5 py-0.5 rounded-md border border-border/50 dark:border-white/[0.04] w-fit">
+              Moneda base: {displayCurrency} ({dispSym})
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-background/60 border border-border/40 shadow-2xs">
-              <p className="text-[11px] text-muted-foreground font-semibold mb-1">
-                Capital invertido
-              </p>
-              <p className="text-base sm:text-lg font-black text-foreground tabular-nums tracking-tight">
-                {dispSym}
-                {portfolioSummary.invested.toLocaleString("es-ES", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-            </div>
-
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-background/60 border border-border/40 shadow-2xs">
-              <p className="text-[11px] text-muted-foreground font-semibold mb-1">
-                Valor actual
-              </p>
-              <p className="text-base sm:text-lg font-black text-foreground tabular-nums tracking-tight">
-                {dispSym}
-                {portfolioSummary.current.toLocaleString("es-ES", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-            </div>
-
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-background/60 border border-border/40 shadow-2xs">
-              <p className="text-[11px] text-muted-foreground font-semibold mb-1">
-                Rentabilidad total
-              </p>
-              <p
-                className={`text-base sm:text-lg font-black tabular-nums tracking-tight ${
-                  isPLPositive ? "text-positive" : "text-destructive"
-                }`}
-              >
-                {isPLPositive ? "+" : "-"}
-                {dispSym}
-                {Math.abs(totalPL).toLocaleString("es-ES", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-              <span
-                className={`text-xs font-black mt-0.5 ${
-                  isPLPositive ? "text-positive" : "text-destructive"
-                }`}
-              >
-                ({isPLPositive ? "+" : ""}
-                {totalPLPct.toFixed(2)}%)
-              </span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              {
+                label: "Capital Invertido",
+                value: fmtCurrency(portfolioSummary.invested, dispSym),
+              },
+              {
+                label: "Valor Actual Total",
+                value: fmtCurrency(portfolioSummary.current, dispSym),
+              },
+              {
+                label: "Rendimiento No Realizado",
+                value: `${isPLPositive ? "↗ " : "↘ "}${fmtSignedCurrency(totalPL, dispSym)}`,
+                sub: `(${fmtPercent(totalPLPct, 2, true)})`,
+                valClass: isPLPositive ? "text-emerald-500" : "text-rose-500",
+                subClass: isPLPositive ? "text-emerald-400" : "text-rose-400",
+              },
+            ].map((c, i) => (
+              <div key={i} className="flex flex-col p-4 rounded-xl bg-muted/50 dark:bg-[#1a1c23] border border-border/50 dark:border-white/[0.04]">
+                <p className="text-[11px] text-muted-foreground font-semibold mb-1 uppercase tracking-wide">
+                  {c.label}
+                </p>
+                <p className={`text-xl font-extrabold tabular-nums tracking-tight ${c.valClass ?? "text-foreground"}`}>
+                  {c.value}
+                </p>
+                {c.sub && <span className={`text-xs font-bold mt-0.5 ${c.subClass}`}>{c.sub}</span>}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -679,6 +726,9 @@ export function StockPricesPanel({
               <TickerCard
                 key={pos.symbol}
                 position={pos}
+                quote={quotes[pos.symbol]}
+                status={quoteStatuses[pos.symbol]}
+                onRefresh={() => fetchAllQuotes([pos.symbol])}
                 onRemove={() => handleRemove(pos.symbol)}
                 onUpdate={(s, p, fx) => handleUpdate(pos.symbol, pos.label, s, p, fx)}
                 onPriceLoaded={handlePriceLoaded}

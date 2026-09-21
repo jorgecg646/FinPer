@@ -21,6 +21,8 @@ import {
   Heart,
   ShieldCheck,
 } from "lucide-react"
+import { fmtCurrency, fmtSignedCurrency, fmtPercent } from "@/lib/format"
+import { useCurrency } from "@/components/finance/use-currency"
 
 type WrappedArchetype = {
   title: string
@@ -36,12 +38,15 @@ export function AnnualWrappedModal({
   transactions = [],
   isOpen,
   onClose,
+  currencySymbol,
 }: {
   summary: Summary
   transactions?: Tx[]
   isOpen: boolean
   onClose: () => void
+  currencySymbol?: string
 }) {
+  const { symbol: resolvedSym } = useCurrency(currencySymbol)
   const [currentSlide, setCurrentSlide] = useState<number>(0)
   const [copied, setCopied] = useState<boolean>(false)
 
@@ -185,7 +190,7 @@ export function AnnualWrappedModal({
         title: "El Sembrador Constante",
         emoji: "🌱",
         tagline: "Paso a paso, cada euro suma hacia tu libertad",
-        description: `Cierras el año en positivo con ${netSavings.toLocaleString("es-ES", { maximumFractionDigits: 0 })} € de superávit. El hábito está vivo y listo para dar el salto al siguiente nivel.`,
+        description: `Cierras el año en positivo con ${fmtCurrency(netSavings, resolvedSym, 0, 0)} de superávit. El hábito está vivo y listo para dar el salto al siguiente nivel.`,
         colorGradient: "from-blue-500 via-indigo-500 to-violet-500",
         badgeBg: "bg-blue-500/20 text-blue-300 border-blue-500/40",
       }
@@ -198,7 +203,7 @@ export function AnnualWrappedModal({
       colorGradient: "from-rose-500 via-purple-500 to-indigo-500",
       badgeBg: "bg-rose-500/20 text-rose-300 border-rose-500/40",
     }
-  }, [savingsRate, netSavings])
+  }, [savingsRate, netSavings, resolvedSym])
 
   const totalSlides = 6
 
@@ -213,9 +218,9 @@ export function AnnualWrappedModal({
   function copySummaryText() {
     const text = `✨ Mi BudgetNext Wrapped ${selectedYear} ✨
 🏆 Personalidad: ${archetype.emoji} ${archetype.title}
-💰 Tasa de Ahorro: ${savingsRate.toFixed(1)}% (${netSavings.toLocaleString("es-ES")} €)
-🥇 Categoría Reina: ${topCategory.category} (${topCategory.amount.toLocaleString("es-ES")} €)
-🌟 Mes Dorado: ${monthlyStats.goldenMonth.monthName} (+${Math.round(monthlyStats.goldenMonth.net).toLocaleString("es-ES")} €)
+💰 Tasa de Ahorro: ${fmtPercent(savingsRate, 1)} (${fmtCurrency(netSavings, resolvedSym, 0, 0)})
+🥇 Categoría Reina: ${topCategory.category} (${fmtCurrency(topCategory.amount, resolvedSym, 0, 0)})
+🌟 Mes Dorado: ${monthlyStats.goldenMonth.monthName} (+${fmtCurrency(Math.round(monthlyStats.goldenMonth.net), resolvedSym, 0, 0)})
 ⏱️ Racha de ahorro: ${monthlyStats.longestStreak} meses consecutivos en positivo
 📊 Gestionado con BudgetNext App`
 
@@ -317,21 +322,16 @@ export function AnnualWrappedModal({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Total Ingresado</span>
-                <span className="text-xl font-black text-white mt-1">
-                  +{totalIncome.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €
-                </span>
-                <span className="text-[10px] text-white/50 mt-0.5">{incomeTxs.length} entradas</span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Total Gastado</span>
-                <span className="text-xl font-black text-white mt-1">
-                  -{totalExpense.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €
-                </span>
-                <span className="text-[10px] text-white/50 mt-0.5">{expenseTxs.length} compras</span>
-              </div>
+              {[
+                { label: "Total Ingresado", color: "text-emerald-400", amount: fmtSignedCurrency(totalIncome, resolvedSym, 0, 0), count: `${incomeTxs.length} entradas` },
+                { label: "Total Gastado", color: "text-rose-400", amount: fmtSignedCurrency(-totalExpense, resolvedSym, 0, 0), count: `${expenseTxs.length} compras` },
+              ].map((card) => (
+                <div key={card.label} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${card.color}`}>{card.label}</span>
+                  <span className="text-xl font-black text-white mt-1">{card.amount}</span>
+                  <span className="text-[10px] text-white/50 mt-0.5">{card.count}</span>
+                </div>
+              ))}
             </div>
 
             {/* Savings Rate Big Box */}
@@ -340,10 +340,10 @@ export function AnnualWrappedModal({
                 Tu Tasa de Ahorro Global
               </span>
               <div className="text-4xl sm:text-5xl font-black text-white my-1">
-                {savingsRate.toFixed(1)}%
+                {fmtPercent(savingsRate, 1)}
               </div>
               <p className="text-xs text-white/70">
-                Has convertido en patrimonio neto <strong className="text-emerald-400 font-bold">{netSavings.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €</strong> este año.
+                Has convertido en patrimonio neto <strong className="text-emerald-400 font-bold">{fmtCurrency(netSavings, resolvedSym, 0, 0)}</strong> este año.
               </p>
             </div>
           </div>
@@ -419,7 +419,7 @@ export function AnnualWrappedModal({
                 <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Mes Más Ahorrador</span>
                 <h4 className="text-lg font-black text-white">{monthlyStats.goldenMonth.monthName}</h4>
                 <p className="text-xs text-white/70">
-                  Lograste ahorrar <strong className="text-emerald-400 font-bold">+{Math.round(monthlyStats.goldenMonth.net).toLocaleString("es-ES")} €</strong> ({monthlyStats.goldenMonth.savingsRate.toFixed(0)}% de tus ingresos).
+                  Lograste ahorrar <strong className="text-emerald-400 font-bold">{fmtSignedCurrency(Math.round(monthlyStats.goldenMonth.net), resolvedSym, 0, 0)}</strong> ({fmtPercent(monthlyStats.goldenMonth.savingsRate, 0)} de tus ingresos).
                 </p>
               </div>
             </div>
@@ -431,7 +431,7 @@ export function AnnualWrappedModal({
                 <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">Mes con Mayor Gasto</span>
                 <h4 className="text-lg font-black text-white">{monthlyStats.spenderMonth.monthName}</h4>
                 <p className="text-xs text-white/70">
-                  El gasto total subió hasta los <strong className="text-rose-400 font-bold">{Math.round(monthlyStats.spenderMonth.expense).toLocaleString("es-ES")} €</strong>.
+                  El gasto total subió hasta los <strong className="text-rose-400 font-bold">{fmtCurrency(Math.round(monthlyStats.spenderMonth.expense), resolvedSym, 0, 0)}</strong>.
                 </p>
               </div>
             </div>
@@ -509,11 +509,11 @@ export function AnnualWrappedModal({
               <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-white/50 uppercase font-semibold">Tasa de Ahorro</span>
-                  <p className="text-base font-black text-emerald-400 mt-0.5">{savingsRate.toFixed(1)}%</p>
+                  <p className="text-base font-black text-emerald-400 mt-0.5">{fmtPercent(savingsRate, 1)}</p>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-white/50 uppercase font-semibold">Ahorro Neto</span>
-                  <p className="text-base font-black text-white mt-0.5">+{netSavings.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €</p>
+                  <p className="text-base font-black text-white mt-0.5">{fmtSignedCurrency(netSavings, resolvedSym, 0, 0)}</p>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-white/50 uppercase font-semibold">Categoría Reina</span>
@@ -577,10 +577,12 @@ export function AnnualWrappedBanner({
   summary,
   transactions = [],
   forceShow = false,
+  currencySymbol,
 }: {
   summary: Summary
   transactions?: Tx[]
   forceShow?: boolean
+  currencySymbol?: string
 }) {
   const [isOpen, setIsOpen] = useState<boolean>(false)
   const currentMonth = new Date().getMonth() // 0 = Jan, 11 = Dec
@@ -630,6 +632,7 @@ export function AnnualWrappedBanner({
         transactions={transactions}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        currencySymbol={currencySymbol}
       />
     </>
   )

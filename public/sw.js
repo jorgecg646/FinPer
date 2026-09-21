@@ -3,7 +3,7 @@ const CACHE_NAME = "budgetnext-pwa-v2"
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
-  "/icon.svg",
+  "/BudgetNext.png",
 ]
 
 self.addEventListener("install", (event) => {

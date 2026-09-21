@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, Calculator, Sun, Moon, TrendingUp } from "lucide-react"
 import { loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
+import { fmtCurrency } from "@/lib/format"
+import { useCurrency } from "@/components/finance/use-currency"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav items shared by Sidebar and MobileNav
@@ -34,9 +36,11 @@ export function ThemeToggle() {
       if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
         setTheme("dark")
         document.documentElement.classList.add("dark")
+        document.documentElement.classList.remove("light")
       } else {
         setTheme("light")
         document.documentElement.classList.remove("dark")
+        document.documentElement.classList.add("light")
       }
     } catch {
       // ignore
@@ -50,8 +54,10 @@ export function ThemeToggle() {
 
     if (nextTheme === "dark") {
       document.documentElement.classList.add("dark")
+      document.documentElement.classList.remove("light")
     } else {
       document.documentElement.classList.remove("dark")
+      document.documentElement.classList.add("light")
     }
   }
 
@@ -81,13 +87,47 @@ export function UserAvatar({ name, src, className = "h-9 w-9" }: { name: string;
 import { PrivacyModal } from "@/components/auth/privacy-modal"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sidebar — desktop left panel
-// ─────────────────────────────────────────────────────────────────────────────
+function useActiveYear() {
+  const searchParams = useSearchParams()
+  const paramYear = searchParams.get("year")
+  const [activeYear, setActiveYear] = useState<string | null>(paramYear)
 
+  useEffect(() => {
+    if (paramYear) {
+      setActiveYear(paramYear)
+    } else {
+      try {
+        const saved = localStorage.getItem("finflow_selected_year")
+        if (saved) setActiveYear(saved)
+      } catch {}
+    }
+  }, [paramYear])
 
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === "finflow_selected_year" && e.newValue) {
+        setActiveYear(e.newValue)
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
-export function Sidebar({ balance, onClose }: { balance: number; onClose?: () => void }) {
+  return activeYear
+}
+
+export function Sidebar({
+  balance,
+  onClose,
+  currencySymbol,
+}: {
+  balance: number
+  onClose?: () => void
+  currencySymbol?: string
+}) {
+  const { symbol: resolvedSym } = useCurrency(currencySymbol)
   const pathname = usePathname()
+  const currentYear = useActiveYear()
   const { user, login, logout } = useAuth()
   const [privacyOpen, setPrivacyOpen] = useState(false)
   const [localProfile, setLocalProfile] = useState(loadLocalProfile)
@@ -116,7 +156,7 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
       {/* Logo + close (mobile) */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground shadow-xs">BN</span>
+          <img src="/BudgetNext.png" alt="BudgetNext Logo" className="h-9 w-9 rounded-xl object-contain shadow-xs" />
           <span className="text-xl font-bold tracking-tight text-foreground">BudgetNext</span>
         </div>
         <div className="flex items-center gap-2">
@@ -134,8 +174,9 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
       <nav className="mt-8 flex flex-col gap-1" aria-label="Principal">
         {NAV_ITEMS.map(({ id, label, icon: Icon, href }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
+          const targetHref = currentYear ? `${href}?year=${currentYear}` : href
           return (
-            <Link key={id} href={href} onClick={onClose} aria-current={isActive ? "page" : undefined}
+            <Link key={id} href={targetHref} onClick={onClose} aria-current={isActive ? "page" : undefined}
               className={`flex items-center justify-between rounded-full px-4 py-2.5 text-xs font-semibold transition-colors ${
                 isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               }`}>
@@ -183,8 +224,8 @@ export function Sidebar({ balance, onClose }: { balance: number; onClose?: () =>
 
         <div className="flex items-center justify-between rounded-2xl border border-border px-3 py-2">
           <span className="text-xs text-muted-foreground">Balance</span>
-          <span className="text-sm font-bold text-foreground">
-            ${balance.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <span className="text-sm font-bold text-foreground" suppressHydrationWarning>
+            {fmtCurrency(balance, resolvedSym)}
           </span>
         </div>
       </div>
@@ -209,7 +250,7 @@ export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-primary-foreground shadow-xs">BN</span>
+        <img src="/BudgetNext.png" alt="BudgetNext Logo" className="h-7 w-7 rounded-lg object-contain shadow-xs" />
         <span className="text-base font-bold tracking-tight text-foreground">BudgetNext</span>
       </div>
       <div className="flex items-center gap-2">
@@ -228,15 +269,17 @@ export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
 
 export function MobileNav() {
   const pathname = usePathname()
+  const currentYear = useActiveYear()
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-border/80 bg-card/95 backdrop-blur-lg px-1 py-1.5 shadow-lg lg:hidden" aria-label="Navegación móvil">
       {NAV_ITEMS.map(({ id, shortLabel, label, icon: Icon, href }) => {
         const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
+        const targetHref = currentYear ? `${href}?year=${currentYear}` : href
         return (
           <Link
             key={id}
-            href={href}
+            href={targetHref}
             aria-current={isActive ? "page" : undefined}
             title={label}
             className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-xl transition-all ${
@@ -260,7 +303,16 @@ export function MobileNav() {
 // LayoutShell — wraps all pages with sidebar + mobile nav & NetlifyAuthProvider
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function LayoutShell({ balance, children }: { balance: number; children: React.ReactNode }) {
+export function LayoutShell({
+  balance,
+  currencySymbol,
+  children,
+}: {
+  balance: number
+  currencySymbol?: string
+  children: React.ReactNode
+}) {
+  const { symbol: resolvedSym } = useCurrency(currencySymbol)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -268,7 +320,7 @@ export function LayoutShell({ balance, children }: { balance: number; children: 
       <div className="flex min-h-screen bg-background" suppressHydrationWarning>
         {/* Desktop sidebar */}
         <div className="sticky top-0 hidden h-screen lg:block">
-          <Sidebar balance={balance} />
+          <Sidebar balance={balance} currencySymbol={resolvedSym} />
         </div>
 
         {/* Mobile sidebar overlay */}
@@ -276,7 +328,7 @@ export function LayoutShell({ balance, children }: { balance: number; children: 
           <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
         )}
         <div className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 lg:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <Sidebar balance={balance} onClose={() => setSidebarOpen(false)} />
+          <Sidebar balance={balance} onClose={() => setSidebarOpen(false)} currencySymbol={resolvedSym} />
         </div>
 
         {/* Main content */}

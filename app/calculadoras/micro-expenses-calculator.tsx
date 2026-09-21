@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react"
+import { fmtCurrency, fmtPercent } from "@/lib/format"
 
 export type MicroPreset = {
   id: string
@@ -356,30 +357,17 @@ export function MicroExpensesLongTermCalculator({ transactions = [] }: { transac
 
           {/* Flashcards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-2xl bg-card border border-border/40 text-center">
-              <p className="text-[10px] text-muted-foreground font-semibold">Total Gastado Hormiga</p>
-              <p className="text-base font-black text-destructive mt-0.5">
-                {detectedMicro.totalMicro.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-              </p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-card border border-border/40 text-center">
-              <p className="text-[10px] text-muted-foreground font-semibold">% de tu Gasto Total</p>
-              <p className="text-base font-black text-foreground mt-0.5">
-                {detectedMicro.pctOfTotal.toFixed(1)}%
-              </p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-card border border-border/40 text-center">
-              <p className="text-[10px] text-muted-foreground font-semibold">Ticket Medio Hormiga</p>
-              <p className="text-base font-black text-foreground mt-0.5">
-                {detectedMicro.avgTicket.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-              </p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center">
-              <p className="text-[10px] text-emerald-400 font-semibold">Impacto a 10 Años (7%)</p>
-              <p className="text-base font-black text-emerald-400 mt-0.5">
-                {detectedMicro.compound10Years.compoundBalance.toLocaleString("es-ES")} €
-              </p>
-            </div>
+            {[
+              { label: "Total Gastado Hormiga", val: fmtCurrency(detectedMicro.totalMicro, "€", 2, 2), color: "text-destructive", cardStyle: "bg-card border-border/40" },
+              { label: "% de tu Gasto Total", val: fmtPercent(detectedMicro.pctOfTotal, 1), color: "text-foreground", cardStyle: "bg-card border-border/40" },
+              { label: "Ticket Medio Hormiga", val: fmtCurrency(detectedMicro.avgTicket, "€", 2, 2), color: "text-foreground", cardStyle: "bg-card border-border/40" },
+              { label: "Impacto a 10 Años (7%)", val: fmtCurrency(detectedMicro.compound10Years.compoundBalance, "€", 0, 0), color: "text-emerald-400", cardStyle: "bg-emerald-500/10 border-emerald-500/30" },
+            ].map((card) => (
+              <div key={card.label} className={`p-3.5 rounded-2xl border text-center ${card.cardStyle}`}>
+                <p className="text-[10px] text-muted-foreground font-semibold">{card.label}</p>
+                <p className={`text-base font-black mt-0.5 ${card.color}`}>{card.val}</p>
+              </div>
+            ))}
           </div>
 
           {/* Breakdown by Category with Click-to-Simulate */}
@@ -544,16 +532,16 @@ export function MicroExpensesLongTermCalculator({ transactions = [] }: { transac
             </div>
             <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/30 flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-destructive">Coste Anual</span>
-              <span className="text-lg font-black text-destructive mt-1">{annualSpent.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</span>
+              <span className="text-lg font-black text-destructive mt-1">{fmtCurrency(annualSpent, "€", 0, 0)}</span>
               <span className="text-[10px] text-muted-foreground">En 1 solo año</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">En 10 Años (Invertido)</span>
               <span className="text-lg font-black text-emerald-400 mt-1">
-                {projection[3].compoundBalance.toLocaleString("es-ES")} €
+                {fmtCurrency(projection[3].compoundBalance, "€", 0, 0)}
               </span>
               <span className="text-[10px] text-emerald-400/80 font-bold">
-                +{(projection[3].compoundBalance - projection[3].totalInvested).toLocaleString("es-ES")} € intereses
+                +{fmtCurrency(projection[3].compoundBalance - projection[3].totalInvested, "€", 0, 0)} intereses
               </span>
             </div>
           </div>
@@ -720,53 +708,23 @@ export function MicroExpensesLongTermCalculator({ transactions = [] }: { transac
               </h3>
 
               <div className="flex flex-col gap-2.5">
-                {/* 1 Year */}
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/30 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">✈️</span>
-                    <div>
-                      <p className="text-xs font-black text-foreground">En 1 año ({projection[0].totalInvested.toLocaleString("es-ES")} €)</p>
-                      <p className="text-[10px] text-muted-foreground">Unas vacaciones completas o escapada europea</p>
+                {[
+                  { icon: "✈️", time: "1 año", amount: projection[0].totalInvested, desc: "Unas vacaciones completas o escapada europea", color: "text-amber-400" },
+                  { icon: "💻", time: "5 años", amount: projection[2].compoundBalance, desc: "MacBook Pro M-Series + smartphone de gama alta", color: "text-amber-400" },
+                  { icon: "🚗", time: "10 años", amount: projection[3].compoundBalance, desc: "Un coche utilitario nuevo al contado", color: "text-emerald-400" },
+                  { icon: "🏡", time: "20 años", amount: projection[5].compoundBalance, desc: "La entrada completa + gastos para comprar una vivienda", color: "text-emerald-400" },
+                ].map((m) => (
+                  <div key={m.time} className="p-2.5 rounded-xl bg-background/70 border border-border/30 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">{m.icon}</span>
+                      <div>
+                        <p className="text-xs font-black text-foreground">En {m.time} ({fmtCurrency(m.amount, "€", 0, 0)})</p>
+                        <p className="text-[10px] text-muted-foreground">{m.desc}</p>
+                      </div>
                     </div>
+                    <span className={`text-xs font-bold shrink-0 ${m.color}`}>{m.time}</span>
                   </div>
-                  <span className="text-xs font-bold text-amber-400 shrink-0">1 año</span>
-                </div>
-
-                {/* 5 Years */}
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/30 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">💻</span>
-                    <div>
-                      <p className="text-xs font-black text-foreground">En 5 años ({projection[2].compoundBalance.toLocaleString("es-ES")} €)</p>
-                      <p className="text-[10px] text-muted-foreground">MacBook Pro M-Series + smartphone de gama alta</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-amber-400 shrink-0">5 años</span>
-                </div>
-
-                {/* 10 Years */}
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/30 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">🚗</span>
-                    <div>
-                      <p className="text-xs font-black text-foreground">En 10 años ({projection[3].compoundBalance.toLocaleString("es-ES")} €)</p>
-                      <p className="text-[10px] text-muted-foreground">Un coche utilitario nuevo al contado</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-400 shrink-0">10 años</span>
-                </div>
-
-                {/* 20 Years */}
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/30 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">🏡</span>
-                    <div>
-                      <p className="text-xs font-black text-foreground">En 20 años ({projection[5].compoundBalance.toLocaleString("es-ES")} €)</p>
-                      <p className="text-[10px] text-muted-foreground">La entrada completa + gastos para comprar una vivienda</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-400 shrink-0">20 años</span>
-                </div>
+                ))}
               </div>
 
               {/* Reduction Simulator Mini Box */}
@@ -788,8 +746,8 @@ export function MicroExpensesLongTermCalculator({ transactions = [] }: { transac
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Ahorras <strong className="text-emerald-400 font-bold">+{monthlySaved.toFixed(0)} €/mes</strong> ({annualSaved.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €/año).
-                  En 10 años invertido tendrías <strong className="text-foreground font-black">+{tenYearsCompoundSaved.compoundBalance.toLocaleString("es-ES")} €</strong> en tu cuenta.
+                  Ahorras <strong className="text-emerald-400 font-bold">+{fmtCurrency(monthlySaved, "€", 0, 0)}/mes</strong> ({fmtCurrency(annualSaved, "€", 0, 0)}/año).
+                  En 10 años invertido tendrías <strong className="text-foreground font-black">+{fmtCurrency(tenYearsCompoundSaved.compoundBalance, "€", 0, 0)}</strong> en tu cuenta.
                 </p>
               </div>
             </div>
@@ -841,11 +799,11 @@ export function MicroExpensesLongTermCalculator({ transactions = [] }: { transac
                   <div className="pt-2.5 border-t border-border/30 flex items-center justify-between text-xs">
                     <div>
                       <p className="text-[10px] text-muted-foreground font-semibold">Al año:</p>
-                      <p className="font-black text-destructive">{annual.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €</p>
+                      <p className="font-black text-destructive">{fmtCurrency(annual, "€", 0, 0)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-emerald-400 font-semibold">En 10 años al 7%:</p>
-                      <p className="font-black text-emerald-400">{tenY.compoundBalance.toLocaleString("es-ES")} €</p>
+                      <p className="font-black text-emerald-400">{fmtCurrency(tenY.compoundBalance, "€", 0, 0)}</p>
                     </div>
                   </div>
 

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { RefreshCw, LayoutGrid, Rows, TrendingUp, TrendingDown, AlertTriangle, X, ExternalLink } from "lucide-react"
+import { fmtNumber } from "@/lib/format"
+import { useVisibilityPolling } from "@/lib/hooks"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,7 +84,7 @@ const getPct = (item: TickerItem, p: PeriodMode) =>
 
 const fmtVal = (val: number, cat: TickerItem["category"]) => {
   const dec = cat === "bonds" ? 3 : cat === "forex" && Math.abs(val) < 20 ? 4 : 2
-  return Math.abs(val).toLocaleString("es-ES", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+  return fmtNumber(Math.abs(val), dec, dec)
 }
 
 // ─── Asset Icon Component ─────────────────────────────────────────────────────
@@ -268,12 +270,23 @@ function getMarketStatuses(now: Date) {
   const eu = getMins("Europe/Madrid"), ny = getMins("America/New_York"), cn = getMins("Asia/Shanghai"), jp = getMins("Asia/Tokyo")
   const fmt = (h: number, m: number) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 
+  const check = (open: boolean, label = "Abierto", fallback = "Cerrado"): { status: "open" | "closed"; statusLabel: string } => ({
+    status: open ? "open" : "closed",
+    statusLabel: open ? label : fallback,
+  })
+
   return [
-    { name: "Europa", flag: "EU", localTime: fmt(eu.h, eu.m), status: !isWeekend && eu.mins >= 540 && eu.mins < 1050 ? "open" : "closed", statusLabel: !isWeekend && eu.mins >= 540 && eu.mins < 1050 ? "Abierto" : "Cerrado" },
-    { name: "Wall Street", flag: "US", localTime: fmt(ny.h, ny.m), status: isWeekend ? "closed" : ny.mins >= 570 && ny.mins < 960 ? "open" : ny.mins >= 240 && ny.mins < 570 ? "pre" : "closed", statusLabel: isWeekend ? "Cerrado" : ny.mins >= 570 && ny.mins < 960 ? "Abierto" : ny.mins >= 240 && ny.mins < 570 ? "Pre-Market" : "Cerrado" },
-    { name: "China", flag: "CN", localTime: fmt(cn.h, cn.m), status: !isWeekend && cn.mins >= 570 && cn.mins < 900 ? (cn.mins >= 690 && cn.mins < 780 ? "closed" : "open") : "closed", statusLabel: !isWeekend && cn.mins >= 570 && cn.mins < 900 ? (cn.mins >= 690 && cn.mins < 780 ? "Descanso" : "Abierto") : "Cerrado" },
-    { name: "Tokio", flag: "JP", localTime: fmt(jp.h, jp.m), status: !isWeekend && jp.mins >= 540 && jp.mins < 900 ? "open" : "closed", statusLabel: !isWeekend && jp.mins >= 540 && jp.mins < 900 ? "Abierto" : "Cerrado" },
-    { name: "Cripto / 24h", flag: "", localTime: fmt(eu.h, eu.m), status: "open", statusLabel: "24/7 Live" },
+    { name: "Europa", flag: "EU", localTime: fmt(eu.h, eu.m), ...check(!isWeekend && eu.mins >= 540 && eu.mins < 1050) },
+    {
+      name: "Wall Street", flag: "US", localTime: fmt(ny.h, ny.m),
+      ...(isWeekend ? check(false) : ny.mins >= 570 && ny.mins < 960 ? check(true) : ny.mins >= 240 && ny.mins < 570 ? { status: "pre" as const, statusLabel: "Pre-Market" } : check(false)),
+    },
+    {
+      name: "China", flag: "CN", localTime: fmt(cn.h, cn.m),
+      ...(!isWeekend && cn.mins >= 570 && cn.mins < 900 ? (cn.mins >= 690 && cn.mins < 780 ? check(false, "", "Descanso") : check(true)) : check(false)),
+    },
+    { name: "Tokio", flag: "JP", localTime: fmt(jp.h, jp.m), ...check(!isWeekend && jp.mins >= 540 && jp.mins < 900) },
+    { name: "Cripto / 24h", flag: "", localTime: fmt(eu.h, eu.m), status: "open" as const, statusLabel: "24/7 Live" },
   ]
 }
 
@@ -316,28 +329,32 @@ function MarketClockBar() {
   )
 }
 
+function mapTickerData(raw: any[] = [], fallbackStatus: "loading" | "error" = "loading"): TickerItem[] {
+  return ALL_ITEMS.map((m) => {
+    const r = raw.find((x) => x.symbol === m.symbol)
+    return r && r.price > 0
+      ? { ...m, price: r.price, change: r.change ?? 0, changePercent: r.changePercent ?? 0, monthChangePercent: r.monthChangePercent ?? r.changePercent ?? 0, ytdChangePercent: r.ytdChangePercent ?? r.changePercent ?? 0, status: "ok" as const }
+      : { ...m, price: 0, change: 0, changePercent: 0, monthChangePercent: 0, ytdChangePercent: 0, status: fallbackStatus }
+  })
+}
+
 // ─── Main Panel Component ─────────────────────────────────────────────────────
 
 export function MarketIndicesPanel() {
-  const [items, setItems] = useState<TickerItem[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(CACHE_KEY)
-        if (cached) {
-          const parsed = JSON.parse(cached) as { symbol: string; price: number; change: number; changePercent: number; monthChangePercent: number; ytdChangePercent: number }[]
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return ALL_ITEMS.map((m) => {
-              const r = parsed.find((p) => p.symbol === m.symbol)
-              return r && r.price > 0
-                ? { ...m, price: r.price, change: r.change ?? 0, changePercent: r.changePercent ?? 0, monthChangePercent: r.monthChangePercent ?? r.changePercent ?? 0, ytdChangePercent: r.ytdChangePercent ?? r.changePercent ?? 0, status: "ok" as const }
-                : { ...m, price: 0, change: 0, changePercent: 0, monthChangePercent: 0, ytdChangePercent: 0, status: "loading" as const }
-            })
-          }
+  const [items, setItems] = useState<TickerItem[]>(() => mapTickerData([], "loading"))
+
+  // Hydrate from localStorage safely on client without hydration mismatch
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(mapTickerData(parsed, "loading"))
         }
-      } catch { }
-    }
-    return ALL_ITEMS.map((i) => ({ ...i, price: 0, change: 0, changePercent: 0, monthChangePercent: 0, ytdChangePercent: 0, status: "loading" as const }))
-  })
+      }
+    } catch { }
+  }, [])
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -358,13 +375,7 @@ export function MarketIndicesPanel() {
       const json = await res.json()
       if (!Array.isArray(json)) throw new Error()
 
-      const updated: TickerItem[] = ALL_ITEMS.map((m) => {
-        const r = json.find((x) => x.symbol === m.symbol)
-        return r && r.price > 0
-          ? { ...m, price: r.price, change: r.change ?? 0, changePercent: r.changePercent ?? 0, monthChangePercent: r.monthChangePercent ?? r.changePercent ?? 0, ytdChangePercent: r.ytdChangePercent ?? r.changePercent ?? 0, status: "ok" as const }
-          : { ...m, price: 0, change: 0, changePercent: 0, monthChangePercent: 0, ytdChangePercent: 0, status: "error" as const }
-      })
-
+      const updated = mapTickerData(json, "error")
       setItems(updated)
       setLastUpdated(new Date())
       setFlashing(true)
@@ -380,14 +391,9 @@ export function MarketIndicesPanel() {
 
   useEffect(() => {
     fetchAll()
-    const id = setInterval(fetchAll, 10_000)
-    const onVis = () => { if (!document.hidden) fetchAll() }
-    document.addEventListener("visibilitychange", onVis)
-    return () => {
-      clearInterval(id)
-      document.removeEventListener("visibilitychange", onVis)
-    }
   }, [fetchAll])
+
+  useVisibilityPolling(fetchAll, 45_000)
 
   const handleSelect = useCallback((item: TickerItem) => setSelectedItem(item), [])
 
@@ -417,7 +423,7 @@ export function MarketIndicesPanel() {
             <div
               className={`flex items-center py-2 transition-colors duration-500 ${flashing ? "bg-primary/20" : ""}`}
               style={{
-                animation: "ticker-scroll 90s linear infinite",
+                animation: "ticker-scroll 120s linear infinite",
                 animationPlayState: paused ? "paused" : "running",
                 width: "max-content",
                 willChange: "transform",
@@ -440,8 +446,8 @@ export function MarketIndicesPanel() {
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={`px-2.5 py-1 rounded transition-all ${period === p
-                    ? "bg-sky-600 text-white dark:bg-sky-400 dark:text-slate-950 font-black shadow-xs"
-                    : "text-stone-700 hover:text-stone-900 dark:text-slate-200 dark:hover:text-white font-bold hover:bg-stone-300/50 dark:hover:bg-white/10"
+                  ? "bg-sky-600 text-white dark:bg-sky-400 dark:text-slate-950 font-black shadow-xs"
+                  : "text-stone-700 hover:text-stone-900 dark:text-slate-200 dark:hover:text-white font-bold hover:bg-stone-300/50 dark:hover:bg-white/10"
                   }`}
               >
                 {p}

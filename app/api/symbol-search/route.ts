@@ -39,11 +39,19 @@ export async function GET(req: NextRequest) {
       const tvData = await tvRes.json()
       if (Array.isArray(tvData.symbols) && tvData.symbols.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: SymbolSearchResult[] = tvData.symbols.slice(0, 25).map((s: any) => {
-          const cleanSym = (s.symbol || "").replace(/<[^>]+>/g, "")
-          const prefix = s.prefix ? `${s.prefix}:` : ""
-          const id = `${prefix}${cleanSym}`
-          const description = (s.description || cleanSym).replace(/<[^>]+>/g, "")
+        const mapped: SymbolSearchResult[] = []
+        const seenIds = new Set<string>()
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const s of tvData.symbols.slice(0, 30)) {
+          const cleanSym = (s.symbol || "").replace(/<[^>]+>/g, "").trim()
+          if (!cleanSym) continue
+          const exch = (s.prefix || s.exchange || "").trim().toUpperCase()
+          const id = exch ? `${exch}:${cleanSym}` : cleanSym
+          if (seenIds.has(id)) continue
+          seenIds.add(id)
+
+          const description = (s.description || cleanSym).replace(/<[^>]+>/g, "").trim()
           const rawLogo =
             s.logo?.logoid ||
             s["base-currency-logoid"] ||
@@ -51,7 +59,7 @@ export async function GET(req: NextRequest) {
             s.logoid ||
             ""
 
-          return {
+          mapped.push({
             id,
             symbol: cleanSym,
             description,
@@ -59,8 +67,9 @@ export async function GET(req: NextRequest) {
             fullExchange: s.source2?.name || s.exchange || "",
             type: s.type || "",
             logoid: typeof rawLogo === "string" ? rawLogo : "",
-          }
-        })
+          })
+          if (mapped.length >= 25) break
+        }
 
         return NextResponse.json(
           { results: mapped },

@@ -13,6 +13,7 @@ import { LogOut } from "lucide-react"
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { loadLocalProfile, PROFILE_STORAGE_KEY } from "@/lib/profile"
+import { fmtCurrency } from "@/lib/format"
 const PLAN_OPTIONS = ["Gratuito", "Básico", "Premium", "Empresarial"]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ export function ProfileForm({ stats }: { stats: ProfileStats }) {
     reader.readAsDataURL(file)
   }
 
-  const fmt = (n: number) => `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const fmt = fmtCurrency
 
   return (
     <div className="flex flex-col gap-6">

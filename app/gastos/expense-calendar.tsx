@@ -13,6 +13,8 @@ import {
   Flame,
   ShoppingBag,
 } from "lucide-react"
+import { useCurrency } from "@/components/finance/use-currency"
+import { fmtCurrency, fmtSignedCurrency } from "@/lib/format"
 
 // ─── Popular Recurring Service Patterns ────────────────────────────────────────
 
@@ -47,10 +49,13 @@ interface DayExpenseDetail {
 export function ExpenseCalendarHeatmap({
   transactions,
   initialYear,
+  currencySymbol,
 }: {
   transactions: Tx[]
   initialYear?: number
+  currencySymbol?: string
 }) {
+  const { symbol: sym } = useCurrency(currencySymbol)
   const today = useMemo(() => new Date(), [])
   const [selectedYear, setSelectedYear] = useState<number>(() => initialYear ?? today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState<number>(() => today.getMonth())
@@ -352,7 +357,7 @@ export function ExpenseCalendarHeatmap({
           <span className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 tabular-nums mt-0.5">
             {peakDay.amount > 0 ? (
               <>
-                Día {peakDay.day} (${peakDay.amount.toFixed(0)})
+                Día {peakDay.day} ({fmtCurrency(peakDay.amount, sym, 0, 0)})
               </>
             ) : (
               "—"
@@ -429,11 +434,11 @@ export function ExpenseCalendarHeatmap({
                   <div className="mt-1">
                     {day.totalExpense > 0 ? (
                       <p className="text-[10px] sm:text-xs font-black tabular-nums tracking-tight leading-tight">
-                        -${day.totalExpense.toLocaleString("es-ES", { maximumFractionDigits: 0 })}
+                        {fmtSignedCurrency(-day.totalExpense, sym, 0, 0)}
                       </p>
                     ) : (
                       <span className="text-[9px] text-muted-foreground/40 font-medium block">
-                        0 €
+                        {fmtCurrency(0, sym, 0, 0)}
                       </span>
                     )}
                   </div>
@@ -450,23 +455,23 @@ export function ExpenseCalendarHeatmap({
           <span>Intensidad de Gasto:</span>
           <div className="flex items-center gap-1">
             <span className="h-3 w-3 rounded bg-card border border-border/40" title="Sin gasto" />
-            <span className="text-[9px]">0€</span>
+            <span className="text-[9px]">0 {sym}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded bg-emerald-500/20 border border-emerald-500/40" title="< 20€" />
-            <span className="text-[9px]">&lt; 20€</span>
+            <span className="h-3 w-3 rounded bg-emerald-500/20 border border-emerald-500/40" title={`< 20 ${sym}`} />
+            <span className="text-[9px]">&lt; 20 {sym}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded bg-amber-500/25 border border-amber-500/50" title="20€ - 60€" />
-            <span className="text-[9px]">20-60€</span>
+            <span className="h-3 w-3 rounded bg-amber-500/25 border border-amber-500/50" title={`20 ${sym} - 60 ${sym}`} />
+            <span className="text-[9px]">20-60 {sym}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded bg-orange-500/30 border border-orange-500/50" title="60€ - 150€" />
-            <span className="text-[9px]">60-150€</span>
+            <span className="h-3 w-3 rounded bg-orange-500/30 border border-orange-500/50" title={`60 ${sym} - 150 ${sym}`} />
+            <span className="text-[9px]">60-150 {sym}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded bg-rose-500/40 border border-rose-500/60" title="> 150€" />
-            <span className="text-[9px]">&gt; 150€</span>
+            <span className="h-3 w-3 rounded bg-rose-500/40 border border-rose-500/60" title={`> 150 ${sym}`} />
+            <span className="text-[9px]">&gt; 150 {sym}</span>
           </div>
         </div>
 
@@ -489,7 +494,7 @@ export function ExpenseCalendarHeatmap({
                 Detalle del Día {activeDay.dayNum} de {MONTH_NAMES[selectedMonth]} {selectedYear}
               </span>
               <span className="text-xs font-black px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                Total: -${activeDay.totalExpense.toFixed(2)}
+                Total: {fmtSignedCurrency(-activeDay.totalExpense, sym)}
               </span>
             </div>
             <button
@@ -517,7 +522,7 @@ export function ExpenseCalendarHeatmap({
                     <span>{sub.logo}</span>
                     <span>{sub.label}</span>
                     <span className="text-muted-foreground">
-                      (~${sub.amount.toFixed(2)})
+                      (~{fmtCurrency(sub.amount, sym)})
                     </span>
                   </div>
                 ))}
@@ -543,7 +548,7 @@ export function ExpenseCalendarHeatmap({
                       <span className="text-[10px] text-muted-foreground">{tx.category}</span>
                     </div>
                     <span className="font-black text-destructive tabular-nums ml-2 shrink-0">
-                      -${tx.amount.toFixed(2)}
+                      {fmtSignedCurrency(-tx.amount, sym)}
                     </span>
                   </div>
                 ))}

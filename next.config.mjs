@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
-    unoptimized: true,
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
   },
   compress: true,
   poweredByHeader: false,
@@ -17,6 +18,18 @@ const nextConfig = {
       "tailwind-merge",
       "jspdf",
       "xlsx",
+      "html-to-image",
+      "@visx/shape",
+      "@visx/group",
+      "@visx/curve",
+      "@visx/gradient",
+      "@visx/scale",
+      "@visx/axis",
+      "@visx/grid",
+      "@visx/tooltip",
+      "@visx/responsive",
+      "@visx/legend",
+      "@visx/event",
     ],
     serverActions: {
       bodySizeLimit: "20mb", // Allow large bank PDF uploads

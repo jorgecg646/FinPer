@@ -1,3 +1,4 @@
+import { cookies } from "next/headers"
 import { getSummary, getTransactions, getStockPositions } from "@/app/actions"
 import { LayoutShell } from "@/components/finance/navigation"
 import { YearSelector, InvestmentMonthlyBarChart } from "@/components/finance/charts"
@@ -5,6 +6,7 @@ import { StockPricesPanel } from "./stock-prices"
 import { RecentTransactions } from "@/components/finance/transactions"
 import { MarketIndicesPanel } from "./market-indices"
 import { isInvestmentTx } from "@/lib/finance"
+import { CURRENCY_SYMBOLS, DEFAULT_CURRENCY, DISPLAY_CURRENCY_KEY, fmtSignedCurrency } from "@/lib/format"
 import { TrendingUp } from "lucide-react"
 
 export const dynamic = "force-dynamic"
@@ -17,6 +19,10 @@ export const metadata = {
 export default async function InversionesPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
   const { year } = await searchParams
   const targetYear = year ? Number(year) : undefined
+
+  const cookieStore = await cookies()
+  const currencyCode = cookieStore.get(DISPLAY_CURRENCY_KEY)?.value || cookieStore.get("finflow-currency")?.value || DEFAULT_CURRENCY
+  const currencySymbol = CURRENCY_SYMBOLS[currencyCode] || "€"
 
   const [summary, transactions, stockPositions] = await Promise.all([
     getSummary(targetYear),
@@ -34,7 +40,7 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
   const totalInvested = investmentTransactions.reduce((s, t) => s + t.amount, 0)
 
   return (
-    <LayoutShell balance={summary.balance}>
+    <LayoutShell balance={summary.balance} currencySymbol={currencySymbol}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <header className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-positive/10 text-positive">
@@ -43,7 +49,7 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
           <div>
             <p className="text-sm text-muted-foreground">Patrimonio Invertido en {selectedYear}</p>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              +${totalInvested.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {fmtSignedCurrency(totalInvested, currencySymbol)}
             </h1>
           </div>
         </header>
@@ -63,7 +69,7 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
         />
 
         <div className="grid grid-cols-1 gap-6">
-          <InvestmentMonthlyBarChart transactions={transactions} selectedYear={selectedYear} />
+          <InvestmentMonthlyBarChart transactions={transactions} selectedYear={selectedYear} currencySymbol={currencySymbol} />
         </div>
 
         <RecentTransactions
@@ -71,6 +77,7 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
           showAll
           selectedYear={selectedYear}
           defaultCategory="Inversiones"
+          currencySymbol={currencySymbol}
         />
       </div>
     </LayoutShell>

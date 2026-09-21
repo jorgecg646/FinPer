@@ -19,7 +19,6 @@ export interface NewsItem {
     | "🪙 CRYPTO"
     | "💼 BUSINESS / EARNINGS"
     | "🧠 TOP INVESTORS"
-    | "📈 MARKETS"
   timeAgo: string
   url: string
   pubTime: number
@@ -58,7 +57,23 @@ function formatRelativeTime(pubTime: number, now: number): { timeAgo: string; ho
 const STRICT_MAX_HOURS = 12 // STRICT 12-HOUR CUTOFF ACROSS ALL CATEGORIES
 
 const CATEGORY_FEEDS: { category: NewsItem["category"]; url: string; source: string }[] = [
-  // 1. news.finance() -> Wall Street & Markets
+  // 0. Google News Finance (España & Global)
+  {
+    category: "🇪🇺 EUROPE / ECB",
+    url: "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnpHZ0pGVXlnQVAB?hl=es&gl=ES&ceid=ES:es",
+    source: "Google News Finance",
+  },
+  {
+    category: "🇺🇸 WALL STREET",
+    url: "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnpHZ0pGVXlnQVAB?hl=en-US&gl=US&ceid=US:en",
+    source: "Google News Finance US",
+  },
+  {
+    category: "🇪🇺 EUROPE / ECB",
+    url: `https://news.google.com/rss/search?q=${encodeURIComponent("finanzas OR bolsa OR 'mercados financieros' OR 'wall street' OR ibex35 when:12h")}&hl=es&gl=ES&ceid=ES:es`,
+    source: "Google News Finance",
+  },
+  // 1. news.finance() -> Wall Street
   { category: "🇺🇸 WALL STREET",        url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664", source: "CNBC Finance" },
   // 2. news.economy() & central_banks() -> Economy & Fed/Rates
   { category: "📊 MACRO / CPI",          url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258", source: "CNBC Economy" },
@@ -92,19 +107,24 @@ const CATEGORY_FEEDS: { category: NewsItem["category"]; url: string; source: str
 let cachedNews: { timestamp: number; news: NewsItem[] } | null = null
 const NEWS_CACHE_TTL = 90 * 1000 // 90 seconds cache
 
+function extractTag(xml: string, tag: string): string {
+  const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))
+  return match ? match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim() : ""
+}
+
 function parseItemsFromXml(xml: string, defaultCategory: NewsItem["category"], source: string, now: number): NewsItem[] {
   const blocks = xml.split(/<item[\s>]/i).slice(1)
   const items: NewsItem[] = []
 
   for (const block of blocks.slice(0, 10)) {
-    const rawTitle = block.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || ""
-    const link = (block.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim()
-    const pubDateStr = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] || ""
+    const rawTitle = extractTag(block, "title")
+    const link = extractTag(block, "link")
+    const pubDateStr = extractTag(block, "pubDate")
 
     // Discard any item with invalid or missing pubDate
     if (!pubDateStr) continue
 
-    const parsed = new Date(pubDateStr.trim()).getTime()
+    const parsed = new Date(pubDateStr).getTime()
     if (isNaN(parsed)) continue
 
     const { timeAgo, hoursDiff } = formatRelativeTime(parsed, now)
@@ -114,7 +134,12 @@ function parseItemsFromXml(xml: string, defaultCategory: NewsItem["category"], s
       continue
     }
 
-    if (/\([a-zA-Z0-9]{8,15}\)/i.test(rawTitle) || /secuestrado|alunicero/i.test(rawTitle)) continue
+    if (
+      /\([a-zA-Z0-9]{8,15}\)/i.test(rawTitle) ||
+      /secuestrado|alunicero|bonoloto|euromillones|lotería|primitiva|cuponazo|horóscopo|fútbol|partido/i.test(rawTitle)
+    ) {
+      continue
+    }
 
     let title = cleanNewsTitle(rawTitle)
     if (source === "Ed Zitron" && !title.toLowerCase().includes("ed zitron")) {
@@ -122,26 +147,39 @@ function parseItemsFromXml(xml: string, defaultCategory: NewsItem["category"], s
     }
     if (title.length < 14 || !link.startsWith("http")) continue
 
+    const rawSource = extractTag(block, "source")
+    const finalSource = rawSource ? (source.includes("Google") ? `${rawSource} · Google News` : rawSource) : source
+
     let category = defaultCategory
     const lower = ` ${title.toLowerCase()} `
 
-    // Detect Top Investors mentions with highest priority
+    // Detect specific thematic market sectors
     if (/buffett|michael burry|burry|ray dalio|dalio|ed zitron|zitron|bill ackman|ackman|cathie wood|druckenmiller|munger|howard marks/i.test(title)) {
       category = "🧠 TOP INVESTORS"
     } else if (lower.includes("oro") || lower.includes("gold") || lower.includes("xauusd")) {
       category = "🥇 GOLD"
     } else if (lower.includes("bitcoin") || lower.includes("cripto") || lower.includes("crypto") || lower.includes("ethereum")) {
       category = "🪙 CRYPTO"
-    } else if (/iceland|greenland|europa|europe|bce|ecb|lagarde|ibex|\beu\b|ukraine|russia|germany|france|italy/i.test(title)) {
-      category = "🇪🇺 EUROPE / ECB"
-    } else if (/treasury|yield|wall street|warsh|powell|fed\b/i.test(title)) {
+    } else if (lower.includes("petróleo") || lower.includes("crude") || lower.includes("oil") || lower.includes("brent") || lower.includes("wti") || lower.includes("gas natural")) {
+      category = "🛢️ COMMODITIES"
+    } else if (/ia\b|ai\b|nvidia|chatgpt|openai|microsoft|google|apple|amazon|meta\b|tech|semiconductor|chip/i.test(title)) {
+      category = "⚡ TECH / AI"
+    } else if (/inflación|ipc|cpi|tipos de interés|interés|pib|gdp|recesión|deuda|arancel|tariffs|fed\b|bce\b|central bank/i.test(title)) {
+      category = "📊 MACRO / CPI"
+    } else if (/beneficio|resultados|ingresos|earnings|dividendo|fusi[oó]n|adquisici[oó]n|opa\b|deóleo|dcoop|empresa|compañía|salario|empleo/i.test(title)) {
+      category = "💼 BUSINESS / EARNINGS"
+    } else if (/china|asia|tokyo|japan|japón|nikkei|korea|taiwan/i.test(title)) {
+      category = "🌏 ASIA / GLOBAL"
+    } else if (/treasury|yield|wall street|warsh|powell|dow|s&p|nasdaq|eeuu|estados unidos|\bus\b/i.test(title)) {
       category = "🇺🇸 WALL STREET"
+    } else if (/iceland|greenland|europa|europe|bce|ecb|lagarde|ibex|dax|madrid|españa|santander|bbva|\beu\b|ukraine|russia|germany|france|italy/i.test(title)) {
+      category = "🇪🇺 EUROPE / ECB"
     }
 
     items.push({
       id: `mkt-${items.length}-${parsed}`,
       title,
-      source,
+      source: finalSource,
       category,
       timeAgo,
       url: link,
