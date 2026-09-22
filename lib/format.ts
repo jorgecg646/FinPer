@@ -58,8 +58,9 @@ export function setStoredCurrency(code: string) {
   try {
     localStorage.setItem(DISPLAY_CURRENCY_KEY, code)
     localStorage.setItem(LEGACY_CURRENCY_KEY, code)
-    document.cookie = `${DISPLAY_CURRENCY_KEY}=${code}; path=/; max-age=31536000; SameSite=Lax`
-    document.cookie = `${LEGACY_CURRENCY_KEY}=${code}; path=/; max-age=31536000; SameSite=Lax`
+    const secure = window.location.protocol === "https:" ? "; Secure" : ""
+    document.cookie = `${DISPLAY_CURRENCY_KEY}=${code}; path=/; max-age=31536000; SameSite=Lax${secure}`
+    document.cookie = `${LEGACY_CURRENCY_KEY}=${code}; path=/; max-age=31536000; SameSite=Lax${secure}`
     window.dispatchEvent(new CustomEvent("finflow-currency-changed", { detail: { currency: code } }))
   } catch {}
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -436,6 +437,17 @@ export async function POST(req: NextRequest) {
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Se requiere un array de items" }, { status: 400 })
+    }
+
+    // Guard: cap payload size to prevent quota abuse
+    if (items.length > 500) {
+      return NextResponse.json({ error: "Máximo 500 items por petición" }, { status: 400 })
+    }
+
+    // Rate limit: 20 requests per minute per IP
+    const ip = getClientIp(req)
+    if (!checkRateLimit(`classify:${ip}`, 20, 60_000)) {
+      return NextResponse.json({ error: "Demasiadas peticiones. Inténtalo en un momento." }, { status: 429 })
     }
 
     const apiKey = process.env.GEMINI_API_KEY

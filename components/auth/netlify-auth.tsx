@@ -51,16 +51,6 @@ export function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
   )
 }
 
-function syncUserCookie(user: NetlifyUser | null) {
-  if (typeof document === "undefined") return
-  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
-  if (user && user.email) {
-    document.cookie = `finflow_user_id=${encodeURIComponent(user.email)}; path=/; max-age=31536000; SameSite=Lax${isSecure}`
-  } else {
-    document.cookie = `finflow_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${isSecure}`
-  }
-}
-
 function getWidget() {
   if (typeof window === "undefined") return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,16 +62,12 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<NetlifyUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  function updateUserState(parsed: NetlifyUser | null, shouldReload = false) {
+  function updateUserState(parsed: NetlifyUser | null) {
     setUser(parsed)
-    syncUserCookie(parsed)
     if (parsed) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
     } else {
       localStorage.removeItem(STORAGE_KEY)
-    }
-    if (shouldReload && typeof window !== "undefined") {
-      window.location.reload()
     }
   }
 
@@ -110,19 +96,35 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      widget.on("login", (netUser: any) => {
+      widget.on("login", async (netUser: any) => {
         const parsed: NetlifyUser = {
           id: netUser.id || netUser.email || "user",
           email: netUser.email || "",
           name: netUser.user_metadata?.full_name || netUser.email?.split("@")[0] || "Usuario Google",
           avatar: netUser.user_metadata?.avatar_url || "/avatar.png",
         }
-        updateUserState(parsed, true)
+        updateUserState(parsed)
+
+        // Set secure HttpOnly session cookie via server API
+        const accessToken = netUser.token?.access_token
+        if (accessToken) {
+          try {
+            await fetch("/api/auth/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: accessToken }),
+            })
+          } catch {
+            // Non-fatal: finflow_session will be missing but user is still identified client-side
+          }
+        }
+
         try { widget.close() } catch {}
+        if (typeof window !== "undefined") window.location.reload()
       })
 
       widget.on("logout", () => {
-        updateUserState(null, true)
+        updateUserState(null)
       })
     } catch (e) {
       console.warn("Netlify Identity init error:", e)
@@ -132,13 +134,12 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // 1. Restore cached local user if available
+    // 1. Restore cached local user if available (for instant UI while widget loads)
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
         setUser(parsed)
-        syncUserCookie(parsed)
       }
     } catch {
       // ignore
@@ -165,6 +166,8 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     if (widget) {
       widget.logout()
     }
+    // Clear server-side HttpOnly session cookie
+    fetch("/api/auth/session", { method: "DELETE" }).catch(() => {})
     updateUserState(null)
   }
 

@@ -78,14 +78,15 @@ function invalidateUserCache(userId: string) {
 }
 
 /**
- * Get active authenticated user ID / email from cookies.
+ * Get active authenticated user ID / email from the HttpOnly `finflow_session` cookie
+ * set by /api/auth/session after verifying the Netlify Identity JWT.
  */
 export async function getActiveUserId(): Promise<string> {
   try {
     const cookieStore = await cookies()
-    const userCookie = cookieStore.get("finflow_user_id")?.value
-    if (userCookie && userCookie.trim()) {
-      return decodeURIComponent(userCookie.trim())
+    const sessionCookie = cookieStore.get("finflow_session")?.value
+    if (sessionCookie?.trim()) {
+      return decodeURIComponent(sessionCookie.trim())
     }
   } catch {
     // fallback if outside request context
@@ -165,8 +166,8 @@ function toTx(row: typeof transactions.$inferSelect): Tx {
 }
 
 function validate(input: TxInput) {
-  const name = input.name?.trim()
-  const category = normalizeCategory(input.category?.trim() || "General")
+  const name = input.name?.trim()?.slice(0, 200)
+  const category = normalizeCategory(input.category?.trim()?.slice(0, 100) || "General")
   const type: TxType = input.type === "income" ? "income" : "expense"
   const amount = Math.abs(Number(input.amount))
 

@@ -64,7 +64,8 @@ export function YearSelector({
   const searchParams = useSearchParams()
 
   function handleYearChange(year: number) {
-    document.cookie = `finflow_selected_year=${year}; path=/; max-age=31536000; SameSite=Lax`
+    const secure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
+    document.cookie = `finflow_selected_year=${year}; path=/; max-age=31536000; SameSite=Lax${secure}`
     try {
       localStorage.setItem("finflow_selected_year", year.toString())
     } catch {}
@@ -75,7 +76,8 @@ export function YearSelector({
 
   useEffect(() => {
     if (selectedYear) {
-      document.cookie = `finflow_selected_year=${selectedYear}; path=/; max-age=31536000; SameSite=Lax`
+      const secure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
+      document.cookie = `finflow_selected_year=${selectedYear}; path=/; max-age=31536000; SameSite=Lax${secure}`
       try {
         localStorage.setItem("finflow_selected_year", selectedYear.toString())
       } catch {}
