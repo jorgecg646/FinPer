@@ -75,7 +75,7 @@ const nextConfig = {
             "script-src 'self' 'unsafe-inline' https://identity.netlify.com https://cdn.jsdelivr.net https://va.vercel-scripts.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https://s3-symbol-logo.tradingview.com https://flagcdn.com https://www.google.com",
+            "img-src 'self' data: blob: https://s3-symbol-logo.tradingview.com https://flagcdn.com https://www.google.com https://lh3.googleusercontent.com",
             "connect-src 'self' https://budgetnext.netlify.app https://scanner.tradingview.com https://symbol-search.tradingview.com https://news.google.com https://search.cnbc.com https://api.coingecko.com wss: https:",
             "frame-src 'self' https://s.tradingview.com",
             "object-src 'none'",

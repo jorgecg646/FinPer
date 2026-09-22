@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { ShieldCheck, X, FileText, CheckCircle2 } from "lucide-react"
+import { ShieldCheck, X, FileText, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react"
 import { GoogleIcon } from "@/components/auth/netlify-auth"
 
 export function PrivacyModal({
@@ -68,21 +68,35 @@ export function PrivacyModal({
             <FileText className="h-4 w-4 text-primary" /> 1. Protección y Privacidad de Datos (RGPD)
           </div>
           <p>
-            BudgetNext garantiza la confidencialidad absoluta de tus datos financieros. Al iniciar sesión con tu cuenta de Google, únicamente procesamos tu nombre, dirección de correo electrónico y foto de perfil autorizada para personalizar tu experiencia de usuario.
+            BudgetNext garantiza la confidencialidad de tus datos financieros. Al iniciar sesión con tu cuenta de Google, únicamente procesamos tu nombre, correo electrónico y foto de perfil para autenticarte y personalizar tu experiencia. Se emplean cookies técnicas y almacenamiento local exclusivamente para mantener tu sesión y preferencias (como moneda y tema visual).
           </p>
 
           <div className="flex items-center gap-2 text-foreground font-bold text-xs mt-2">
-            <ShieldCheck className="h-4 w-4 text-primary" /> 2. Seguridad e Historial Financiero
+            <ShieldCheck className="h-4 w-4 text-primary" /> 2. Seguridad y Almacenamiento
           </div>
           <p>
-            Tus transacciones, presupuestos y documentos PDF se cifran y almacenan en servidores seguros con conexiones SSL de alta protección. Ningún tercero ni agente externo tiene acceso a tus información bancaria o registros financieros.
+            Tus transacciones, presupuestos y documentos se procesan bajo conexiones cifradas SSL y bases de datos seguras. Ningún tercero tiene acceso a tu información bancaria ni a tus registros personales.
           </p>
 
           <div className="flex items-center gap-2 text-foreground font-bold text-xs mt-2">
-            <CheckCircle2 className="h-4 w-4 text-primary" /> 3. Control y Eliminación de Datos
+            <Sparkles className="h-4 w-4 text-primary" /> 3. Tratamiento de Datos e Inteligencia Artificial
           </div>
           <p>
-            Puedes cerrar tu sesión o solicitar la eliminación total de tus registros en cualquier momento desde el apartado de Perfil de la plataforma.
+            Las funciones de categorización automática y lectura de extractos analizan los conceptos de las transacciones mediante modelos de Inteligencia Artificial para facilitar tu registro, sin ceder ni comercializar tus datos a terceros.
+          </p>
+
+          <div className="flex items-center gap-2 text-foreground font-bold text-xs mt-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" /> 4. Exención de Responsabilidad Financiera
+          </div>
+          <p>
+            BudgetNext es una herramienta informativa de control y estimación presupuestaria para uso personal. No constituye asesoramiento financiero, tributario o de inversión oficial ni garantiza rendimientos de carteras.
+          </p>
+
+          <div className="flex items-center gap-2 text-foreground font-bold text-xs mt-2">
+            <CheckCircle2 className="h-4 w-4 text-primary" /> 5. Control y Eliminación de tus Datos
+          </div>
+          <p>
+            Tú mantienes el control total: puedes consultar, exportar o eliminar tus movimientos y perfil en cualquier momento desde la sección de Perfil.
           </p>
         </div>
 
