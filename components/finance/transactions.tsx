@@ -117,7 +117,7 @@ export function DeleteConfirmModal({
         <div className="mt-4 rounded-2xl bg-secondary/50 p-3 text-xs">
           <p className="font-semibold text-foreground">{tx.name}</p>
           <p className="mt-0.5 text-muted-foreground">{tx.category} · {formatDate(tx.occurredAt)}</p>
-          <p className={`mt-1 font-bold tabular-nums ${isIncome ? "text-positive" : "text-foreground"}`}>
+          <p className={`mt-1 font-bold tabular-nums ${isIncome ? "text-positive" : "text-destructive"}`}>
             {isInvestment && !isIncome ? fmtCurrency(tx.amount, currencySymbol) : fmtSignedCurrency(isIncome ? tx.amount : -tx.amount, currencySymbol)}
           </p>
         </div>
@@ -688,7 +688,7 @@ export function RecentTransactions({
                   </div>
                   <p className="text-xs text-muted-foreground">{t.category} · {formatDate(t.occurredAt)}</p>
                 </div>
-                <span className={`text-sm font-bold tabular-nums ${isIncome ? "text-positive" : "text-foreground"}`}>
+                <span className={`text-sm font-bold tabular-nums ${isIncome ? "text-positive" : "text-destructive"}`}>
                   {isInvestment && !isIncome ? fmtCurrency(t.amount, resolvedSym) : fmtSignedCurrency(isIncome ? t.amount : -t.amount, resolvedSym)}
                 </span>
                 <div className="flex items-center gap-1 opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100">

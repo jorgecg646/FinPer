@@ -8,9 +8,10 @@ const nextConfig = {
     minimumCacheTTL: 86400,
   },
   compress: true,
-  poweredByHeader: false,
   reactStrictMode: true,
-  turbopack: {},
+  turbopack: {
+    root: process.cwd(),
+  },
   experimental: {
     optimizePackageImports: [
       "lucide-react",
@@ -72,12 +73,12 @@ const nextConfig = {
           key: "Content-Security-Policy",
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://identity.netlify.com https://cdn.jsdelivr.net https://va.vercel-scripts.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https://s3-symbol-logo.tradingview.com https://flagcdn.com https://www.google.com https://lh3.googleusercontent.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://identity.netlify.com https://cdn.jsdelivr.net https://va.vercel-scripts.com https://s3.tradingview.com https://s.tradingview.com https://*.tradingview.com https://www.tradingview-widget.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.tradingview.com",
+            "font-src 'self' https://fonts.gstatic.com https://*.tradingview.com",
+            "img-src 'self' data: blob: https://s3-symbol-logo.tradingview.com https://*.tradingview.com https://flagcdn.com https://www.google.com https://lh3.googleusercontent.com",
             "connect-src 'self' https://budgetnext.netlify.app https://scanner.tradingview.com https://symbol-search.tradingview.com https://news.google.com https://search.cnbc.com https://api.coingecko.com wss: https:",
-            "frame-src 'self' https://s.tradingview.com",
+            "frame-src 'self' https://s.tradingview.com https://*.tradingview.com https://www.tradingview-widget.com https://www.tradingview.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",

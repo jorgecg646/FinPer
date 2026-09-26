@@ -58,12 +58,60 @@ function getWidget() {
   return win.netlifyIdentity || null
 }
 
+function syncUserCookie(user: NetlifyUser | null) {
+  if (typeof document === "undefined") return
+  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
+  if (user && user.email) {
+    document.cookie = `finflow_user_id=${encodeURIComponent(user.email)}; path=/; max-age=31536000; SameSite=Lax${isSecure}`
+  } else {
+    document.cookie = `finflow_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax${isSecure}`
+  }
+}
+
+function cleanNetlifyHash() {
+  if (typeof window !== "undefined" && window.location.hash) {
+    if (
+      window.location.hash.includes("access_token=") ||
+      window.location.hash.includes("id_token=") ||
+      window.location.hash.includes("recovery_token=") ||
+      window.location.hash.includes("invite_token=")
+    ) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search)
+    }
+  }
+}
+
+function cleanupWidgetIframe() {
+  if (typeof document === "undefined") return
+  document.body.style.overflow = ""
+  document.body.classList.remove("netlify-identity-open")
+  const iframe = document.getElementById("netlify-identity-widget")
+  if (iframe) {
+    iframe.style.pointerEvents = "none"
+    iframe.style.display = "none"
+  }
+}
+
+async function syncServerSession(token?: string) {
+  if (!token) return
+  try {
+    await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+  } catch {
+    // Non-fatal: finflow_session will be missing but finflow_user_id is available as fallback
+  }
+}
+
 export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<NetlifyUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   function updateUserState(parsed: NetlifyUser | null) {
     setUser(parsed)
+    syncUserCookie(parsed)
     if (parsed) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
     } else {
@@ -76,27 +124,12 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     if (!widget) return
 
     try {
-      widget.init({
-        APIUrl: NETLIFY_IDENTITY_URL,
-        container: "body",
-      })
-      if (typeof widget.setAPIUrl === "function") {
-        widget.setAPIUrl(NETLIFY_IDENTITY_URL)
-      }
+      const isOAuthRedirect =
+        typeof window !== "undefined" &&
+        (window.location.hash.includes("access_token=") || window.location.hash.includes("id_token="))
 
-      const currentUser = widget.currentUser()
-      if (currentUser) {
-        const parsed: NetlifyUser = {
-          id: currentUser.id || currentUser.email || "user",
-          email: currentUser.email || "",
-          name: currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Usuario Google",
-          avatar: currentUser.user_metadata?.avatar_url || "/avatar.png",
-        }
-        updateUserState(parsed)
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      widget.on("login", async (netUser: any) => {
+      async function processUser(netUser: any, isFromRedirect = false) {
+        if (!netUser) return
         const parsed: NetlifyUser = {
           id: netUser.id || netUser.email || "user",
           email: netUser.email || "",
@@ -105,29 +138,64 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
         }
         updateUserState(parsed)
 
-        // Set secure HttpOnly session cookie via server API
-        const accessToken = netUser.token?.access_token
+        try { widget.close() } catch {}
+        cleanupWidgetIframe()
+
+        const accessToken = netUser.token?.access_token || (await netUser.jwt?.())
         if (accessToken) {
-          try {
-            await fetch("/api/auth/session", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token: accessToken }),
-            })
-          } catch {
-            // Non-fatal: finflow_session will be missing but user is still identified client-side
-          }
+          await syncServerSession(accessToken)
         }
 
-        try { widget.close() } catch {}
-        if (typeof window !== "undefined") window.location.reload()
+        if (isFromRedirect && typeof window !== "undefined") {
+          cleanNetlifyHash()
+          window.location.replace(window.location.pathname + window.location.search)
+        }
+      }
+
+      // 1. REGISTER LISTENERS BEFORE widget.init()
+      widget.on("login", (netUser: any) => {
+        processUser(netUser, isOAuthRedirect)
+      })
+
+      // When returning from Google OAuth via redirect, Netlify Identity fires 'init' with the user!
+      widget.on("init", (netUser: any) => {
+        if (netUser && isOAuthRedirect) {
+          processUser(netUser, true)
+        } else if (netUser) {
+          processUser(netUser, false)
+        } else {
+          cleanupWidgetIframe()
+        }
+      })
+
+      widget.on("close", () => {
+        cleanupWidgetIframe()
       })
 
       widget.on("logout", () => {
+        cleanupWidgetIframe()
         updateUserState(null)
       })
+
+      // 2. Initialize widget
+      widget.init({
+        APIUrl: NETLIFY_IDENTITY_URL,
+        container: "body",
+      })
+      if (typeof widget.setAPIUrl === "function") {
+        widget.setAPIUrl(NETLIFY_IDENTITY_URL)
+      }
+
+      // 3. Fallback: If user is already available or was parsed during init
+      const currentUser = widget.currentUser()
+      if (currentUser) {
+        processUser(currentUser, isOAuthRedirect)
+      } else {
+        cleanupWidgetIframe()
+      }
     } catch (e) {
       console.warn("Netlify Identity init error:", e)
+      cleanupWidgetIframe()
     } finally {
       setIsLoading(false)
     }
@@ -140,6 +208,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored)
         setUser(parsed)
+        syncUserCookie(parsed)
       }
     } catch {
       // ignore
@@ -166,7 +235,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     if (widget) {
       widget.logout()
     }
-    // Clear server-side HttpOnly session cookie
+    // Clear server-side HttpOnly session cookie and client fallback cookie
     fetch("/api/auth/session", { method: "DELETE" }).catch(() => {})
     updateUserState(null)
   }

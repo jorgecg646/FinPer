@@ -211,7 +211,9 @@ function TxRow({
           min="0"
           value={tx.amount}
           onChange={(e) => onChange({ amount: parseFloat(e.target.value) || 0 })}
-          className="w-24 rounded-lg border border-border bg-background px-2 py-1 text-right text-xs outline-none focus:ring-1 focus:ring-ring"
+          className={`w-24 rounded-lg border border-border bg-background px-2 py-1 text-right text-xs outline-none focus:ring-1 focus:ring-ring font-bold tabular-nums ${
+            tx.type === "expense" ? "text-destructive" : "text-emerald-500"
+          }`}
         />
       </td>
 

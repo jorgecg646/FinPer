@@ -62,20 +62,8 @@ const db = drizzle(pool, { schema: { transactions, stockPositions } })
 // ─────────────────────────────────────────────────────────────────────────────
 // Server-side Intelligent Cache & Mutation Tracking
 // ─────────────────────────────────────────────────────────────────────────────
-
-type CacheEntry = {
-  timestamp: number
-  data: Tx[]
-}
-
-const memoryCache = new Map<string, CacheEntry>()
-const lastMutationTimes = new Map<string, number>()
-
-function invalidateUserCache(userId: string) {
-  // Delete cache entry entirely so the next getTransactions() always hits the DB
-  memoryCache.delete(userId)
-  lastMutationTimes.set(userId, Date.now())
-}
+// Server actions & DB queries (Multi-device synchronized)
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Get active authenticated user ID / email from the HttpOnly `finflow_session` cookie
@@ -84,13 +72,20 @@ function invalidateUserCache(userId: string) {
 export async function getActiveUserId(): Promise<string> {
   try {
     const cookieStore = await cookies()
+    // 1. Primary: HttpOnly verified session cookie
     const sessionCookie = cookieStore.get("finflow_session")?.value
     if (sessionCookie?.trim()) {
       return decodeURIComponent(sessionCookie.trim())
     }
+    // 2. Fallback: Client-synchronized cookie
+    const clientCookie = cookieStore.get("finflow_user_id")?.value
+    if (clientCookie?.trim()) {
+      return decodeURIComponent(clientCookie.trim())
+    }
   } catch {
     // fallback if outside request context
   }
+  // Si no hay cuenta autenticada, se almacena en local
   return "local-user"
 }
 
@@ -184,30 +179,15 @@ const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "S
 
 export async function getTransactions(): Promise<Tx[]> {
   const activeUserId = await getActiveUserId()
-  const lastMutation = lastMutationTimes.get(activeUserId) || 0
-  const cached = memoryCache.get(activeUserId)
 
-  // Serve instantly from cache if no mutations occurred since last fetch
-  if (cached && cached.timestamp > lastMutation) {
-    return cached.data
-  }
-
-  // Fetch fresh data from DB
+  // Fetch fresh data from DB (guarantees multi-device real-time sync)
   const rows = await db
     .select()
     .from(transactions)
     .where(eq(transactions.userId, activeUserId))
     .orderBy(desc(transactions.occurredAt), desc(transactions.id))
   
-  const result = rows.map(toTx)
-
-  // Store in cache
-  memoryCache.set(activeUserId, {
-    timestamp: Date.now(),
-    data: result,
-  })
-
-  return result
+  return rows.map(toTx)
 }
 
 export async function getSummary(targetYear?: number): Promise<Summary> {
@@ -310,6 +290,7 @@ function revalidateAllPaths() {
 
 export async function createTransaction(input: TxInput) {
   const activeUserId = await getActiveUserId()
+  if (!activeUserId) return
   const { name, category, type, amount } = validate(input)
   await db.insert(transactions).values({
     userId: activeUserId,
@@ -319,25 +300,24 @@ export async function createTransaction(input: TxInput) {
     amount: amount.toFixed(2),
     occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
   })
-  invalidateUserCache(activeUserId)
   revalidateAllPaths()
 }
 
 export async function updateTransaction(id: number, input: TxInput) {
   const activeUserId = await getActiveUserId()
+  if (!activeUserId) return
   const { name, category, type, amount } = validate(input)
   await db
     .update(transactions)
     .set({ name, category, type, amount: amount.toFixed(2), ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}) })
     .where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
-  invalidateUserCache(activeUserId)
   revalidateAllPaths()
 }
 
 export async function deleteTransaction(id: number) {
   const activeUserId = await getActiveUserId()
+  if (!activeUserId) return
   await db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
-  invalidateUserCache(activeUserId)
   revalidateAllPaths()
 }
 
@@ -345,17 +325,25 @@ export async function createTransactionsBulk(inputs: TxInput[]) {
   if (!inputs.length) return 0
   const activeUserId = await getActiveUserId()
 
-  const records = inputs.map((input) => {
-    const { name, category, type, amount } = validate(input)
-    return {
-      userId: activeUserId,
-      name,
-      category,
-      type,
-      amount: amount.toFixed(2),
-      occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
+  const records = []
+  for (const input of inputs) {
+    try {
+      const { name, category, type, amount } = validate(input)
+      const occurredDate = input.occurredAt ? new Date(input.occurredAt) : new Date()
+      records.push({
+        userId: activeUserId,
+        name,
+        category,
+        type,
+        amount: amount.toFixed(2),
+        occurredAt: !isNaN(occurredDate.getTime()) ? occurredDate : new Date(),
+      })
+    } catch {
+      // Omitir fila inválida puntual sin anular el resto del lote
     }
-  })
+  }
+
+  if (!records.length) return 0
 
   // Insert all in chunks of 500 to avoid query size limits
   const CHUNK_SIZE = 500
@@ -364,7 +352,6 @@ export async function createTransactionsBulk(inputs: TxInput[]) {
     await db.insert(transactions).values(chunk)
   }
 
-  invalidateUserCache(activeUserId)
   revalidateAllPaths()
   return records.length
 }
@@ -372,8 +359,8 @@ export async function createTransactionsBulk(inputs: TxInput[]) {
 export async function deleteTransactionsBulk(ids: number[]) {
   if (!ids.length) return
   const activeUserId = await getActiveUserId()
+  if (!activeUserId) return
   await db.delete(transactions).where(and(inArray(transactions.id, ids), eq(transactions.userId, activeUserId)))
-  invalidateUserCache(activeUserId)
   revalidateAllPaths()
 }
 
@@ -425,11 +412,14 @@ export async function getProfileStats(): Promise<ProfileStats> {
 
 export async function getStockPositions(): Promise<StockPosition[]> {
   const activeUserId = await getActiveUserId()
+
+  // Fetch fresh data from DB (guarantees multi-device real-time sync)
   const rows = await db
     .select()
     .from(stockPositions)
     .where(eq(stockPositions.userId, activeUserId))
     .orderBy(stockPositions.createdAt)
+
   return rows.map((row) => ({
     id: row.id,
     symbol: row.symbol,

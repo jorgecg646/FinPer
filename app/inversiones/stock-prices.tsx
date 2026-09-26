@@ -22,6 +22,7 @@ import {
   CompoundGrowthChart,
   IndexComparisonChart,
 } from "./stock-charts"
+import { TradingViewIcon } from "./market-indices"
 
 const TradingViewAdvancedWidget = nextDynamic(
   () => import("./stock-charts").then((mod) => mod.TradingViewAdvancedWidget),
@@ -611,8 +612,9 @@ export function StockPricesPanel({
             <h2 className="text-sm font-bold text-foreground sm:text-base">
               Precios de Mercado en Tiempo Real
             </h2>
-            <p className="text-xs text-muted-foreground">
-              Datos vía TradingView · actualización automática cada 60 s
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+              <TradingViewIcon className="h-3.5 w-3.5 text-stone-900 dark:text-white shrink-0" />
+              <span>Datos vía TradingView · actualización automática cada 60 s</span>
             </p>
           </div>
         </div>

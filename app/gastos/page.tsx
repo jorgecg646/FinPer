@@ -50,7 +50,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Total gastos de vida en {selectedYear}</p>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-3xl font-bold tracking-tight text-destructive">
               {fmtSignedCurrency(-totalLivingExpenses, currencySymbol)}
             </h1>
           </div>

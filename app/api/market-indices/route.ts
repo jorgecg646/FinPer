@@ -94,9 +94,9 @@ const SCANNER_PAYLOAD = JSON.stringify({
   columns: ["close", "change_abs", "change", "Perf.1M", "Perf.YTD", "high", "low"],
 })
 
-// In-memory cache — 5 second TTL (CNBC real-time speed)
+// In-memory cache — 2 second TTL (real-time stream speed)
 let cache: { ts: number; data: IndexResult[] } | null = null
-const CACHE_TTL_MS = 5_000
+const CACHE_TTL_MS = 2_000
 
 interface ParsedScan {
   price: number
@@ -159,7 +159,7 @@ export async function GET() {
   if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
     return NextResponse.json(cache.data, {
       headers: {
-        "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15",
+        "Cache-Control": "public, s-maxage=2, stale-while-revalidate=5",
       },
     })
   }
@@ -195,7 +195,7 @@ export async function GET() {
 
     return NextResponse.json(results, {
       headers: {
-        "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15",
+        "Cache-Control": "public, s-maxage=2, stale-while-revalidate=5",
       },
     })
   } catch (err) {

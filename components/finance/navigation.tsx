@@ -176,7 +176,7 @@ export function Sidebar({
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           const targetHref = currentYear ? `${href}?year=${currentYear}` : href
           return (
-            <Link key={id} href={targetHref} onClick={onClose} aria-current={isActive ? "page" : undefined}
+            <Link key={id} href={targetHref} prefetch={true} onClick={onClose} aria-current={isActive ? "page" : undefined}
               className={`flex items-center justify-between rounded-full px-4 py-2.5 text-xs font-semibold transition-colors ${
                 isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               }`}>
@@ -280,6 +280,7 @@ export function MobileNav() {
           <Link
             key={id}
             href={targetHref}
+            prefetch={true}
             aria-current={isActive ? "page" : undefined}
             title={label}
             className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-xl transition-all ${

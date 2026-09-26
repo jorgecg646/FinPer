@@ -296,6 +296,14 @@ const CLOCK_STYLES = {
   closed: { dot: "bg-rose-500", bg: "bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30 font-black" },
 }
 
+export function TradingViewIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z" />
+    </svg>
+  )
+}
+
 function MarketClockBar() {
   const [clocks, setClocks] = useState(() => getMarketStatuses(new Date()))
   useEffect(() => {
@@ -304,26 +312,37 @@ function MarketClockBar() {
   }, [])
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-stone-200/80 dark:bg-[#040810] border-t border-stone-300/80 dark:border-white/15 overflow-x-auto no-scrollbar">
-      <span className="text-[10px] font-black text-stone-600 dark:text-slate-300 uppercase tracking-wider shrink-0 px-1 hidden sm:inline">HORARIO MERCADOS:</span>
-      <div className="flex items-center gap-2 flex-nowrap">
-        {clocks.map((c) => {
-          const s = (CLOCK_STYLES as any)[c.status] ?? CLOCK_STYLES.closed
-          return (
-            <div key={c.name} className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white border border-stone-300/80 dark:bg-white/10 dark:border-white/15 shrink-0 shadow-2xs text-stone-900 dark:text-white">
-              <AssetIcon flag={c.flag} />
-              <span className="text-xs font-black">{c.name}</span>
-              <span className="text-[11px] font-extrabold text-stone-600 dark:text-slate-200 tabular-nums">{c.localTime}</span>
-              <span className={`flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border ${s.bg}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-                {c.statusLabel}
-              </span>
-            </div>
-          )
-        })}
+    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-stone-200/80 dark:bg-[#040810] border-t border-stone-300/80 dark:border-white/15">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar min-w-0 flex-1">
+        <span className="text-[10px] font-black text-stone-600 dark:text-slate-300 uppercase tracking-wider shrink-0 px-1 hidden sm:inline">HORARIO MERCADOS:</span>
+        <div className="flex items-center gap-2 flex-nowrap shrink-0">
+          {clocks.map((c) => {
+            const s = (CLOCK_STYLES as any)[c.status] ?? CLOCK_STYLES.closed
+            return (
+              <div key={c.name} className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white border border-stone-300/80 dark:bg-white/10 dark:border-white/15 shrink-0 shadow-2xs text-stone-900 dark:text-white">
+                <AssetIcon flag={c.flag} />
+                <span className="text-xs font-black">{c.name}</span>
+                <span className="text-[11px] font-extrabold text-stone-600 dark:text-slate-200 tabular-nums">{c.localTime}</span>
+                <span className={`flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border ${s.bg}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                  {c.statusLabel}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </div>
-      <div className="ml-auto shrink-0 px-2 hidden lg:flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity">
-        <span className="text-[9px] font-black tracking-wider text-stone-600 dark:text-slate-300 uppercase">Datos por TradingView</span>
+      <div className="shrink-0 pl-1.5 border-l border-stone-300/80 dark:border-white/15 flex items-center">
+        <a
+          href="https://es.tradingview.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Datos proporcionados por TradingView"
+          aria-label="TradingView"
+          className="p-1 rounded-md hover:bg-stone-300/60 dark:hover:bg-white/10 opacity-80 hover:opacity-100 transition-all flex items-center justify-center group"
+        >
+          <TradingViewIcon className="h-4 w-4 text-stone-900 dark:text-white group-hover:scale-115 transition-transform" />
+        </a>
       </div>
     </div>
   )
@@ -370,7 +389,7 @@ export function MarketIndicesPanel() {
     isFetchingRef.current = true
     setRefreshing(true)
     try {
-      const res = await fetch("/api/market-indices")
+      const res = await fetch("/api/market-indices", { cache: "no-store" })
       if (!res.ok) throw new Error()
       const json = await res.json()
       if (!Array.isArray(json)) throw new Error()
@@ -379,7 +398,7 @@ export function MarketIndicesPanel() {
       setItems(updated)
       setLastUpdated(new Date())
       setFlashing(true)
-      setTimeout(() => setFlashing(false), 1500)
+      setTimeout(() => setFlashing(false), 800)
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(updated)) } catch { }
     } catch {
       setItems((prev) => prev.map((i) => ({ ...i, status: "error" as const })))
@@ -393,7 +412,7 @@ export function MarketIndicesPanel() {
     fetchAll()
   }, [fetchAll])
 
-  useVisibilityPolling(fetchAll, 45_000)
+  useVisibilityPolling(fetchAll, 5_000)
 
   const handleSelect = useCallback((item: TickerItem) => setSelectedItem(item), [])
 

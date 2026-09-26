@@ -163,14 +163,20 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
 }
 
 @keyframes marquee {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .animate-marquee {
@@ -178,7 +184,7 @@
   width: max-content;
   will-change: transform;
   transform: translateZ(0);
-  animation: marquee 320s linear infinite;
+  animation: marquee 450s linear infinite;
 }
 
 .animate-marquee:hover {
@@ -187,6 +193,7 @@
 
 /* ─── Reglas de Impresión y Exportación a PDF (Informe Fiscal IRPF) ─── */
 @media print {
+
   /* 1. Ocultar todos los elementos de la interfaz web estándar */
   body * {
     visibility: hidden;
@@ -246,11 +253,13 @@
   }
 
   .printable-fiscal-report .print-positive {
-    color: #047857 !important; /* Esmeralda oscuro de alta legibilidad */
+    color: #047857 !important;
+    /* Esmeralda oscuro de alta legibilidad */
   }
 
   .printable-fiscal-report .print-destructive {
-    color: #b91c1c !important; /* Rojo oscuro de alta legibilidad */
+    color: #b91c1c !important;
+    /* Rojo oscuro de alta legibilidad */
   }
 
   /* Tabla de operaciones detalladas */
@@ -312,4 +321,14 @@
     size: A4 portrait;
     margin: 12mm 15mm;
   }
+}
+
+/* Prevent Netlify Identity widget iframe from blocking screen touches when closed */
+iframe#netlify-identity-widget {
+  pointer-events: none !important;
+}
+
+body.netlify-identity-open iframe#netlify-identity-widget {
+  pointer-events: auto !important;
+  display: block !important;
 }

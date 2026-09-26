@@ -128,6 +128,7 @@ export function PortfolioPosition({
         </span>
       </div>
 
+      {/* Valor actual */}
       <div className="flex justify-between text-xs">
         <span className="text-muted-foreground">Valor actual</span>
         <span className="font-bold text-foreground tabular-nums">

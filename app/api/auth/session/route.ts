@@ -33,14 +33,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No email in token" }, { status: 401 })
     }
 
-    const isProduction = process.env.NODE_ENV === "production"
+    const isHttps = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https"
+    const useSecure = process.env.NODE_ENV === "production" && isHttps
     const cookieValue = encodeURIComponent(email)
 
     // Build response and set the HttpOnly cookie server-side
     const response = NextResponse.json({ ok: true, email })
     response.cookies.set("finflow_session", cookieValue, {
       httpOnly: true,
-      secure: isProduction,
+      secure: useSecure,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 365, // 1 year
@@ -57,11 +58,12 @@ export async function POST(req: NextRequest) {
  * DELETE /api/auth/session
  * Clears the HttpOnly session cookie (logout).
  */
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const isHttps = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https"
   const response = NextResponse.json({ ok: true })
   response.cookies.set("finflow_session", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && isHttps,
     sameSite: "lax",
     path: "/",
     maxAge: 0,

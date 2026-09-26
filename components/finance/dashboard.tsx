@@ -171,6 +171,48 @@ export function BalanceCard({
 
   const activePoint = hoveredIdx !== null ? linePoints[hoveredIdx] : null
 
+  // Variación del balance neto frente al mes anterior
+  const monthComparison = useMemo(() => {
+    if (!monthly || monthly.length === 0) return null
+
+    const now = new Date()
+    const isCurrentYear = !year || year === now.getFullYear()
+    
+    // Mes activo: mes actual o el último mes con actividad registrada
+    let activeIdx = isCurrentYear ? now.getMonth() : 11
+    if (monthly[activeIdx]?.income === 0 && monthly[activeIdx]?.expense === 0) {
+      for (let i = monthly.length - 1; i >= 0; i--) {
+        if (monthly[i].income > 0 || monthly[i].expense > 0) {
+          activeIdx = i
+          break
+        }
+      }
+    }
+
+    if (activeIdx <= 0) return null
+    const curMonth = monthly[activeIdx]
+    const prevMonth = monthly[activeIdx - 1]
+    if (!curMonth || !prevMonth) return null
+
+    const curNet = curMonth.net
+    const prevNet = prevMonth.net
+
+    if (prevNet === 0) {
+      if (curNet === 0) return { pct: 0, isPos: true, label: `vs ${prevMonth.label}` }
+      return { pct: 100, isPos: curNet > 0, label: `vs ${prevMonth.label}` }
+    }
+
+    const diff = curNet - prevNet
+    const pct = (diff / Math.abs(prevNet)) * 100
+    const isPos = pct >= 0
+
+    return {
+      pct: Math.abs(pct),
+      isPos,
+      label: `vs ${prevMonth.label}`,
+    }
+  }, [monthly, year])
+
   return (
     <section className="relative overflow-hidden rounded-2xl bg-card p-5 sm:p-6 border border-border shadow-xs transition-colors hover:border-border/80">
       {/* Top Header */}
@@ -184,9 +226,19 @@ export function BalanceCard({
             <span className="text-3xl sm:text-4xl font-extrabold text-foreground tabular-nums tracking-tight">
               {hidden ? "••••••••" : fmtCurrency(balance, resolvedSym)}
             </span>
-            <span className="inline-flex items-center gap-1 text-sm sm:text-base font-extrabold text-emerald-400 tabular-nums">
-              ↗ +{balance > 0 ? ((balance / 1000) * 1.25).toFixed(2) : "0.00"} %
-            </span>
+            {monthComparison && (
+              <span
+                className={`inline-flex items-center gap-1 text-sm sm:text-base font-extrabold tabular-nums ${
+                  monthComparison.isPos ? "text-emerald-400" : "text-destructive"
+                }`}
+                title={`Variación del balance neto (${monthComparison.isPos ? "+" : "-"}${monthComparison.pct.toFixed(1)}%) ${monthComparison.label}`}
+              >
+                {monthComparison.isPos ? "↗ +" : "↘ -"}{monthComparison.pct > 999 ? ">999" : monthComparison.pct.toFixed(1)} %
+                <span className="text-[10px] font-semibold text-muted-foreground/75 ml-0.5">
+                  {monthComparison.label}
+                </span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -358,7 +410,7 @@ function StatCard({
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
-      <p className="mt-3 text-2xl font-extrabold tracking-tight text-foreground tabular-nums">
+      <p className={`mt-3 text-2xl font-extrabold tracking-tight tabular-nums ${positive ? "text-foreground" : "text-destructive"}`}>
         {fmtCurrency(amount, currencySymbol)}
       </p>
       <p className={`mt-1 text-xs font-semibold ${positive ? "text-emerald-500" : "text-rose-500"}`}>
