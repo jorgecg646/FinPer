@@ -69,7 +69,7 @@ function ConfidenceBadge({ confidence }: { confidence: ParsedTransaction["confid
   )
 }
 
-type EditableTx = ParsedTransaction & { selected: boolean; aiClassified?: boolean }
+type EditableTx = ParsedTransaction & { selected: boolean; aiClassified?: boolean; aiModel?: string }
 
 function DropZone({ onFile }: { onFile: (f: File) => void }) {
   const [dragging, setDragging] = useState(false)
@@ -241,8 +241,11 @@ function TxRow({
       </td>
       <td className="px-2 py-2">
         {tx.aiClassified && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700" title="Clasificado por Gemini AI">
-            <Sparkles className="h-3 w-3" aria-hidden="true" />
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-950/60 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/40"
+            title="Clasificado por Gemini AI"
+          >
+            <Sparkles className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
             IA
           </span>
         )}

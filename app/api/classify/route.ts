@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { generateGeminiJson } from "@/lib/gemini"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ export type ClassifyResult = {
   name: string
   category: string
   aiClassified: boolean
+  aiModel?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,12 +248,11 @@ function fallbackName(raw: string): string {
 // Gemini classifier — processes items in batches
 // ─────────────────────────────────────────────────────────────────────────────
 
-// In-memory runtime cache: key = "type:normalized_raw" -> { name, category }
-const classificationCache = new Map<string, { name: string; category: string }>()
+// In-memory runtime cache: key = "type:normalized_raw" -> { name, category, aiModel }
+const classificationCache = new Map<string, { name: string; category: string; aiModel?: string }>()
 
 export async function classifyWithGemini(
-  items: ClassifyInput[],
-  apiKey: string
+  items: ClassifyInput[]
 ): Promise<ClassifyResult[]> {
   const BATCH_SIZE = 30
   const resultMap = new Map<string, ClassifyResult>()
@@ -280,6 +280,7 @@ export async function classifyWithGemini(
         name: cached.name,
         category: cached.category,
         aiClassified: true,
+        aiModel: cached.aiModel,
       })
       continue
     }
@@ -314,18 +315,6 @@ export async function classifyWithGemini(
   // ── 2. Call Gemini only for genuinely ambiguous items in parallel ────────
   if (itemsNeedingAI.length > 0) {
     try {
-      const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1,
-          maxOutputTokens: 4096,
-          // @ts-ignore - disables thinking delay
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      })
-
       const batches: ClassifyInput[][] = []
       for (let i = 0; i < itemsNeedingAI.length; i += BATCH_SIZE) {
         batches.push(itemsNeedingAI.slice(i, i + BATCH_SIZE))
@@ -358,10 +347,9 @@ Lista (id|tipo|descripcion):
 ${batch.map((t) => `${t.id}|${t.type === "income" ? "ingreso" : "gasto"}|${t.raw.replace(/[\r\n|]/g, " ").trim()}`).join("\n")}`
 
           try {
-            const result = await model.generateContent(prompt)
-            const text = result.response.text().trim()
-            const cleaned = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim()
-            const parsed: { id: string; name: string; category: string }[] = JSON.parse(cleaned)
+            const { data: parsed, modelUsed: usedModel } = await generateGeminiJson<
+              { id: string; name: string; category: string }[]
+            >(prompt, { tag: "classify" })
 
             for (const parsedItem of parsed) {
               const original = batch.find((b) => b.id === parsedItem.id)
@@ -379,7 +367,7 @@ ${batch.map((t) => `${t.id}|${t.type === "income" ? "ingreso" : "gasto"}|${t.raw
               const finalName = parsedItem.name?.trim() || fallbackName(original.raw)
 
               // Save to memory cache for future requests
-              classificationCache.set(cacheKey, { name: finalName, category })
+              classificationCache.set(cacheKey, { name: finalName, category, aiModel: usedModel })
 
               for (const targetId of targetIds) {
                 resultMap.set(targetId, {
@@ -387,6 +375,7 @@ ${batch.map((t) => `${t.id}|${t.type === "income" ? "ingreso" : "gasto"}|${t.raw
                   name: finalName,
                   category,
                   aiClassified: true,
+                  aiModel: usedModel,
                 })
               }
             }
@@ -463,7 +452,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ results })
     }
 
-    const results = await classifyWithGemini(items, apiKey)
+    const results = await classifyWithGemini(items)
 
     // Ensure all input items have a result (fill gaps with fallback)
     const resultIds = new Set(results.map((r) => r.id))

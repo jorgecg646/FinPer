@@ -45,3 +45,9 @@ export const AnnualWrappedBanner = nextDynamic(
   () => import("@/components/finance/annual-wrapped").then((m) => m.AnnualWrappedBanner),
   { ssr: false, loading: () => null }
 )
+
+export const FinancialAiInsights = nextDynamic(
+  () => import("@/components/finance/ai-insights").then((m) => m.FinancialAiInsights ?? m.default),
+  { ssr: false, loading: () => <div className="h-44 w-full rounded-2xl bg-secondary/40 animate-pulse" /> }
+)
+

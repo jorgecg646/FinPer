@@ -61,6 +61,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="BudgetNext" />
         <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+          strategy="afterInteractive"
+        />
+        <Script
           id="theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{

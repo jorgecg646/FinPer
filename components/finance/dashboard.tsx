@@ -410,7 +410,7 @@ function StatCard({
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
-      <p className={`mt-3 text-2xl font-extrabold tracking-tight tabular-nums ${positive ? "text-foreground" : "text-destructive"}`}>
+      <p className="mt-3 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
         {fmtCurrency(amount, currencySymbol)}
       </p>
       <p className={`mt-1 text-xs font-semibold ${positive ? "text-emerald-500" : "text-rose-500"}`}>

@@ -12,6 +12,7 @@ import {
   MoneyFlowSankeyChart,
   RecentTransactions,
   AnnualWrappedBanner,
+  FinancialAiInsights,
 } from "@/components/finance/lazy-home-charts"
 
 export const dynamic = "force-dynamic"
@@ -66,6 +67,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ y
         {/* Right Column */}
         <div className="flex flex-col gap-6">
           <StatCards income={summary.income} expenses={summary.expenses} year={selectedYear} currencySymbol={currencySymbol} />
+          <FinancialAiInsights transactions={transactions} summary={summary} currencySymbol={currencySymbol} />
         </div>
       </div>
     </LayoutShell>

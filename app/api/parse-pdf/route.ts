@@ -16,6 +16,7 @@ export type ParsedTransaction = {
   raw: string
   confidence: "high" | "medium" | "low"
   aiClassified?: boolean
+  aiModel?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,17 +383,16 @@ export async function POST(req: NextRequest) {
           type: t.type,
         }))
 
-        const results = await classifyWithGemini(classifyItems, apiKey)
+        const results = await classifyWithGemini(classifyItems)
         const resultMap = new Map(results.map((r) => [r.id, r]))
 
         for (const tx of transactions) {
           const classified = resultMap.get(tx.id)
           if (classified) {
-            tx.name = classified.name
-            if (!tx.category || tx.category === "General" || tx.category === "Otros ingresos") {
-              tx.category = classified.category
-            }
+            if (classified.name) tx.name = classified.name
+            if (classified.category) tx.category = classified.category
             tx.aiClassified = classified.aiClassified
+            tx.aiModel = classified.aiModel
           }
         }
       }
