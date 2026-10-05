@@ -34,6 +34,9 @@ function resolveTradingViewLogoId(
   if (typeof baseCurrencyLogoid === "string" && baseCurrencyLogoid.trim()) return baseCurrencyLogoid.trim()
 
   const sym = symbol.toUpperCase()
+  if (/USOIL|UKOIL|BRENT|WTI|CRUDE|CL1!|BB1!|BZ1!|WTICOUSD|BCOUSD/.test(sym)) {
+    return "crude-oil"
+  }
   // Crypto fallback mappings for TradingView SVG logos
   const cryptoMatch = sym.match(/(?:BINANCE:|CRYPTO:|COINBASE:|BITSTAMP:|OKX:|BYBIT:|KRAKEN:)?([A-Z0-9]+)(?:USDT|USD|EUR|BTC|ETH)?$/)
   const base = cryptoMatch ? cryptoMatch[1] : ""

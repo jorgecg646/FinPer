@@ -17,6 +17,8 @@ export const BENCHMARKS = [
   { symbol: "FOREXCOM:NSXUSD", name: "Nasdaq 100", icon: "🚀", ytdPct: 15.84, color: "#8b5cf6" },
   { symbol: "BME:IBC", name: "Ibex 35", icon: "🇪🇸", ytdPct: 16.86, color: "#f59e0b" },
   { symbol: "TVC:GOLD", name: "Oro (Gold)", icon: "🥇", ytdPct: 1.49, color: "#eab308" },
+  { symbol: "TVC:USOIL", name: "Petróleo WTI (USOIL)", icon: "🛢️", ytdPct: 8.20, color: "#06b6d4" },
+  { symbol: "TVC:UKOIL", name: "Petróleo Brent", icon: "🛢️", ytdPct: 7.85, color: "#0ea5e9" },
   { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", icon: "🪙", ytdPct: -27.52, color: "#ef4444" },
 ]
 
@@ -35,7 +37,7 @@ export const SECTOR_CONFIGS: Record<string, { name: string; icon: string; color:
 export function detectSector(symbol: string, label: string): keyof typeof SECTOR_CONFIGS {
   const text = `${symbol} ${label}`.toUpperCase()
   if (/BTC|ETH|SOL|BINANCE:|CRYPTO:|BITCOIN|ETHEREUM/.test(text)) return "crypto"
-  if (/GOLD|SILVER|XAUUSD|TVC:GOLD|GDX|ORO/.test(text)) return "commodities"
+  if (/GOLD|SILVER|XAUUSD|TVC:GOLD|GDX|ORO|USOIL|UKOIL|BRENT|WTI|CRUDE|PETROLEO|OIL|NATGAS/.test(text)) return "commodities"
   if (/SPY|QQQ|IBC|NDX|SPX|ETF|INDEX|S&P|NASDAQ|IBEX/.test(text)) return "etf"
   if (/AAPL|NVDA|MSFT|AMZN|GOOG|META|TSLA|AMD|ASML|APPLE|NVIDIA|MICROSOFT|TESLA/.test(text)) return "tech"
   if (/SAN|BBVA|JPM|BAC|\bV\b|\bMA\b|BANCO|SANTANDER/.test(text)) return "financial"
@@ -876,6 +878,8 @@ export function TradingViewAdvancedWidget({ positions }: { positions: StockPosit
       { symbol: "FOREXCOM:NSXUSD", title: "Nasdaq 100" },
       { symbol: "BME:IBC", title: "Ibex 35" },
       { symbol: "TVC:GOLD", title: "Oro (Gold)" },
+      { symbol: "TVC:USOIL", title: "Petróleo WTI (USOIL)" },
+      { symbol: "TVC:UKOIL", title: "Petróleo Brent" },
       { symbol: "BINANCE:BTCUSDT", title: "Bitcoin" },
     ]
     const userSyms = valid.map((p) => ({ symbol: p.symbol, title: p.label || p.symbol }))
@@ -952,7 +956,7 @@ export function TradingViewAdvancedWidget({ positions }: { positions: StockPosit
             📉 Visor Comparativo Oficial de TradingView (Todos los Activos)
           </h4>
           <p className="text-xs text-muted-foreground">
-            Gráfico interactivo profesional de TradingView superponiendo S&P 500, Nasdaq 100, Ibex 35, Bitcoin y las acciones de tu cartera
+            Gráfico interactivo profesional de TradingView superponiendo S&P 500, Nasdaq 100, Ibex 35, Oro, Petróleo (USOIL / Brent), Bitcoin y las acciones de tu cartera
           </p>
         </div>
         {!scriptLoaded && (

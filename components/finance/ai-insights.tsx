@@ -42,10 +42,10 @@ export function FinancialAiInsights({
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileRef>(null)
 
-  // Load from cache on mount
+  // Load from persistent local storage on mount
   useEffect(() => {
     try {
-      const cached = sessionStorage.getItem(CACHE_KEY)
+      const cached = localStorage.getItem(CACHE_KEY)
       if (cached) {
         const parsed = JSON.parse(cached)
         setInsights(parsed)
@@ -78,7 +78,7 @@ export function FinancialAiInsights({
 
       setInsights(data)
       try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify(data))
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data))
       } catch {
         // ignore
       }
@@ -116,7 +116,14 @@ export function FinancialAiInsights({
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Resumen ejecutivo, comparativa mensual y detector de gastos fantasma
+              {insights?.generatedAt
+                ? `Análisis guardado · ${new Date(insights.generatedAt).toLocaleDateString("es-ES", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "Resumen ejecutivo, comparativa mensual y detector de gastos fantasma"}
             </p>
           </div>
         </div>
@@ -126,7 +133,7 @@ export function FinancialAiInsights({
             <button
               type="button"
               onClick={() => {
-                sessionStorage.removeItem(CACHE_KEY)
+                localStorage.removeItem(CACHE_KEY)
                 setInsights(null)
               }}
               disabled={loading}
@@ -339,11 +346,10 @@ export function FinancialAiInsights({
                               {alert.title}
                             </span>
                             <span
-                              className={`inline-flex items-center rounded-full px-1.5 py-0.2 text-[9px] font-semibold uppercase ${
-                                alert.type === "duplicado"
+                              className={`inline-flex items-center rounded-full px-1.5 py-0.2 text-[9px] font-semibold uppercase ${alert.type === "duplicado"
                                   ? "bg-rose-500/15 text-rose-400"
                                   : "bg-amber-500/15 text-amber-400"
-                              }`}
+                                }`}
                             >
                               {alert.type === "duplicado" ? "Posible Duplicado" : "Gasto Fantasma"}
                             </span>

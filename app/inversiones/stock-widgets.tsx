@@ -55,6 +55,8 @@ export const SUGGESTIONS = [
   { label: "Amazon", symbol: "NASDAQ:AMZN", logoid: "amazon" },
   { label: "Tesla", symbol: "NASDAQ:TSLA", logoid: "tesla" },
   { label: "Oro", symbol: "TVC:GOLD", logoid: "metal/gold--big" },
+  { label: "Petróleo WTI (USOIL)", symbol: "TVC:USOIL", logoid: "crude-oil" },
+  { label: "Petróleo Brent", symbol: "TVC:UKOIL", logoid: "crude-oil" },
   { label: "Bitcoin", symbol: "BINANCE:BTCUSDT", logoid: "crypto/XTVCBTC" },
   { label: "Ethereum", symbol: "BINANCE:ETHUSDT", logoid: "crypto/XTVCETH" },
   { label: "Solana", symbol: "BINANCE:SOLUSDT", logoid: "crypto/XTVCSOL" },

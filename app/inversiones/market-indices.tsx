@@ -49,8 +49,8 @@ const ALL_ITEMS: Pick<TickerItem, "symbol" | "short" | "flag" | "logo" | "pairLo
   // Commodities
   { symbol: "TVC:GOLD", short: "GOLD", logo: "https://s3-symbol-logo.tradingview.com/metal/gold--big.svg", chartSymbol: "OANDA:XAUUSD", category: "commodities" },
   { symbol: "TVC:SILVER", short: "SILVER", logo: "https://s3-symbol-logo.tradingview.com/silver.svg", chartSymbol: "OANDA:XAGUSD", category: "commodities" },
-  { symbol: "TVC:USOIL", short: "WTI", logo: "https://s3-symbol-logo.tradingview.com/crude-oil--big.svg", chartSymbol: "OANDA:WTICOUSD", category: "commodities" },
-  { symbol: "TVC:UKOIL", short: "BRENT", logo: "https://s3-symbol-logo.tradingview.com/crude-oil--big.svg", chartSymbol: "OANDA:BCOUSD", category: "commodities" },
+  { symbol: "TVC:USOIL", short: "USOIL", logo: "https://s3-symbol-logo.tradingview.com/crude-oil--big.svg", chartSymbol: "TVC:USOIL", category: "commodities" },
+  { symbol: "TVC:UKOIL", short: "BRENT", logo: "https://s3-symbol-logo.tradingview.com/crude-oil--big.svg", chartSymbol: "TVC:UKOIL", category: "commodities" },
   { symbol: "TVC:NATGAS", short: "NATGAS", logo: "https://s3-symbol-logo.tradingview.com/natural-gas--big.svg", chartSymbol: "CAPITALCOM:NATURALGAS", category: "commodities" },
   { symbol: "COMEX:HG1!", short: "COPPER", logo: "https://s3-symbol-logo.tradingview.com/metal/copper--big.svg", chartSymbol: "CAPITALCOM:XCUUSD", category: "commodities" },
   // Forex
@@ -65,7 +65,7 @@ const ALL_ITEMS: Pick<TickerItem, "symbol" | "short" | "flag" | "logo" | "pairLo
   { symbol: "BINANCE:SOLUSDT", short: "SOL", logo: "https://s3-symbol-logo.tradingview.com/crypto/XTVCSOL.svg", category: "crypto" },
 ]
 
-const CACHE_KEY = "finper_markets_cache_v3"
+const CACHE_KEY = "finper_markets_cache_v4"
 
 const CATEGORY_LABELS: Record<TickerItem["category"], string> = {
   indices: "ÍNDICES", bonds: "BONOS", commodities: "MATERIAS PRIMAS", forex: "DIVISAS", crypto: "CRIPTO",
