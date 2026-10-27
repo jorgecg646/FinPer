@@ -69,12 +69,65 @@ export async function fetchQuote(symbol: string): Promise<StockQuote> {
   return json as StockQuote
 }
 
+const inFlightQuotes = new Map<string, Promise<Record<string, StockQuote>>>()
+
 export async function fetchQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
-  if (symbols.length === 0) return {}
-  const res = await fetch(`/api/stock-price?symbols=${encodeURIComponent(symbols.join(","))}`)
-  const json = await res.json()
-  if (!res.ok || json.error) throw new Error(json.error ?? "Error de red")
-  return json as Record<string, StockQuote>
+  const cleanSymbols = Array.from(new Set(symbols.map((s) => s.trim().toUpperCase()))).filter(Boolean)
+  if (cleanSymbols.length === 0) return {}
+
+  // Chunk into batches of 35 to prevent oversized URLs
+  const CHUNK_SIZE = 35
+  if (cleanSymbols.length > CHUNK_SIZE) {
+    const chunks: string[][] = []
+    for (let i = 0; i < cleanSymbols.length; i += CHUNK_SIZE) {
+      chunks.push(cleanSymbols.slice(i, i + CHUNK_SIZE))
+    }
+    const chunkResults = await Promise.all(chunks.map((c) => fetchQuotes(c)))
+    return Object.assign({}, ...chunkResults)
+  }
+
+  const cacheKey = cleanSymbols.slice().sort().join(",")
+  if (inFlightQuotes.has(cacheKey)) {
+    return inFlightQuotes.get(cacheKey)!
+  }
+
+  const promise = (async () => {
+    try {
+      // For batch quote polling, use GET /api/watch-list to keep console logs clean without long query strings
+      if (cleanSymbols.length > 5) {
+        const res = await fetch("/api/watch-list")
+        if (res.ok) {
+          const json = await res.json()
+          const missing = cleanSymbols.filter((s) => !json[s])
+          if (missing.length === 0) {
+            return json as Record<string, StockQuote>
+          }
+          // Fetch any extra custom symbols via POST /api/watch-list
+          const postRes = await fetch("/api/watch-list", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbols: missing }),
+          })
+          if (postRes.ok) {
+            const postJson = await postRes.json()
+            return { ...json, ...postJson } as Record<string, StockQuote>
+          }
+          return json as Record<string, StockQuote>
+        }
+      }
+
+      // Single symbol or small fallback
+      const res = await fetch(`/api/stock-price?symbols=${encodeURIComponent(cleanSymbols.join(","))}`)
+      const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error ?? "Error de red")
+      return json as Record<string, StockQuote>
+    } finally {
+      inFlightQuotes.delete(cacheKey)
+    }
+  })()
+
+  inFlightQuotes.set(cacheKey, promise)
+  return promise
 }
 
 // ─── Portfolio Position Breakdown ─────────────────────────────────────────────

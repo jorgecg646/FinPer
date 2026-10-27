@@ -149,10 +149,10 @@ export function formatCompactCurrency(val: number, dispSym: string): string {
 
 export function getTradingViewLogoUrl(logoid?: string | null): string | null {
   if (!logoid) return null
-  const clean = logoid.trim()
+  const clean = logoid.trim().replace(/\.svg$/i, "")
   if (!clean) return null
   if (clean.startsWith("http://") || clean.startsWith("https://")) return clean
-  if (clean.includes("/")) {
+  if (clean.includes("/") || clean.endsWith("--big")) {
     return `https://s3-symbol-logo.tradingview.com/${clean}.svg`
   }
   return `https://s3-symbol-logo.tradingview.com/${clean}--big.svg`

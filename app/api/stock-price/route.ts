@@ -21,9 +21,9 @@ export interface StockPriceResult {
   logoid: string
 }
 
-// In-memory cache for live stock quotes (30s TTL)
+// In-memory cache for live stock quotes (2s TTL matching market-indices)
 const priceCache = new Map<string, { timestamp: number; data: StockPriceResult }>()
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = 2_000
 
 function resolveTradingViewLogoId(
   symbol: string,
@@ -116,30 +116,15 @@ async function fetchFallbackQuote(symbol: string): Promise<StockPriceResult> {
   })
 }
 
-export async function GET(req: NextRequest) {
-  const symbolsParam = req.nextUrl.searchParams.get("symbols")?.trim()
-  const singleSymbolParam = req.nextUrl.searchParams.get("symbol")?.trim()
-
-  if (!symbolsParam && !singleSymbolParam) {
-    return NextResponse.json({ error: "symbol or symbols is required" }, { status: 400 })
-  }
-
-  const isBatch = Boolean(symbolsParam)
-  const symbols = isBatch
-    ? symbolsParam!.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
-    : [singleSymbolParam!.toUpperCase()]
-
-  if (symbols.length === 0) {
-    return NextResponse.json(isBatch ? {} : { error: "No valid symbol provided" }, {
-      status: isBatch ? 200 : 400,
-    })
-  }
+export async function fetchStockQuotesServer(symbols: string[]): Promise<Record<string, StockPriceResult>> {
+  const cleanSymbols = Array.from(new Set(symbols.map((s) => s.trim().toUpperCase()))).filter(Boolean)
+  if (cleanSymbols.length === 0) return {}
 
   const now = Date.now()
   const results: Record<string, StockPriceResult> = {}
   const symbolsToFetch: string[] = []
 
-  for (const sym of symbols) {
+  for (const sym of cleanSymbols) {
     const cached = priceCache.get(sym)
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       results[sym] = cached.data
@@ -150,9 +135,7 @@ export async function GET(req: NextRequest) {
 
   // If everything was in cache, return immediately
   if (symbolsToFetch.length === 0) {
-    return NextResponse.json(isBatch ? results : results[symbols[0]], {
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
-    })
+    return results
   }
 
   // 1. Primary method: TradingView Global Scanner HTTP API (supports multiple tickers at once)
@@ -263,17 +246,54 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  return results
+}
+
+export async function GET(req: NextRequest) {
+  const symbolsParam = req.nextUrl.searchParams.get("symbols")?.trim()
+  const singleSymbolParam = req.nextUrl.searchParams.get("symbol")?.trim()
+
+  if (!symbolsParam && !singleSymbolParam) {
+    return NextResponse.json({ error: "symbol or symbols is required" }, { status: 400 })
+  }
+
+  const isBatch = Boolean(symbolsParam)
+  const symbols = isBatch
+    ? symbolsParam!.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
+    : [singleSymbolParam!.toUpperCase()]
+
+  if (symbols.length === 0) {
+    return NextResponse.json(isBatch ? {} : { error: "No valid symbol provided" }, {
+      status: isBatch ? 200 : 400,
+    })
+  }
+
+  const results = await fetchStockQuotesServer(symbols)
+
   if (!isBatch) {
     const single = results[symbols[0]]
     if (!single) {
       return NextResponse.json({ error: "Could not fetch quote for " + symbols[0] }, { status: 502 })
     }
     return NextResponse.json(single, {
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
     })
   }
 
   return NextResponse.json(results, {
-    headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+    headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
   })
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}))
+    const symbols: string[] = Array.isArray(body?.symbols) ? body.symbols : []
+    const results = await fetchStockQuotesServer(symbols)
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
+    })
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
 }

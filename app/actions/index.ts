@@ -1,63 +1,15 @@
 "use server"
 
-import { drizzle } from "drizzle-orm/node-postgres"
-import { Pool } from "pg"
-import { numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
 import { and, desc, eq, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { cookies } from "next/headers"
 import { isInvestmentTx } from "@/lib/finance"
+import { calculateSummary, type Summary } from "@/lib/finance-summary"
+import { normalizeCategory, validateTransactionInput } from "@/lib/transaction-validation"
+import { db, stockPositions, transactions } from "@/lib/db"
+import { getSessionSecret, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DB — Schema + Connection
-// ─────────────────────────────────────────────────────────────────────────────
-
-const transactions = pgTable("transactions", {
-  id: serial("id").primaryKey(),
-  userId: text("userId").notNull().default("local-user"),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  type: text("type").notNull(), // "income" | "expense"
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  occurredAt: timestamp("occurredAt", { withTimezone: true }).notNull().defaultNow(),
-  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-})
-
-const stockPositions = pgTable("stock_positions", {
-  id: serial("id").primaryKey(),
-  userId: text("userId").notNull().default("local-user"),
-  symbol: text("symbol").notNull(),
-  label: text("label").notNull(),
-  shares: numeric("shares", { precision: 18, scale: 6 }),
-  avgPrice: numeric("avgPrice", { precision: 18, scale: 6 }),
-  avgFxRate: numeric("avgFxRate", { precision: 18, scale: 6 }),
-  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-})
-
-function getConnectionString(): string | undefined {
-  let connStr = process.env.DATABASE_URL
-  if (!connStr) return undefined
-  if (connStr.includes("sslmode=require") || connStr.includes("sslmode=prefer")) {
-    connStr = connStr.replace(/sslmode=(require|prefer)/g, "sslmode=verify-full")
-  }
-  return connStr
-}
-
-function getOrCreatePool(): Pool {
-  const g = globalThis as typeof globalThis & { _finperPool?: Pool }
-  if (!g._finperPool) {
-    g._finperPool = new Pool({
-      connectionString: getConnectionString(),
-      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: true } : false,
-      max: 10,
-      idleTimeoutMillis: 30000,
-    })
-  }
-  return g._finperPool
-}
-
-const pool = getOrCreatePool()
-const db = drizzle(pool, { schema: { transactions, stockPositions } })
+export type { Summary } from "@/lib/finance-summary"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server-side Intelligent Cache & Mutation Tracking
@@ -66,27 +18,13 @@ const db = drizzle(pool, { schema: { transactions, stockPositions } })
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Get active authenticated user ID / email from the HttpOnly `finflow_session` cookie
- * set by /api/auth/session after verifying the Netlify Identity JWT.
+ * Resolve the authenticated account or browser-isolated guest session from its signed cookie.
  */
 export async function getActiveUserId(): Promise<string> {
-  try {
-    const cookieStore = await cookies()
-    // 1. Primary: HttpOnly verified session cookie
-    const sessionCookie = cookieStore.get("finflow_session")?.value
-    if (sessionCookie?.trim()) {
-      return decodeURIComponent(sessionCookie.trim())
-    }
-    // 2. Fallback: Client-synchronized cookie
-    const clientCookie = cookieStore.get("finflow_user_id")?.value
-    if (clientCookie?.trim()) {
-      return decodeURIComponent(clientCookie.trim())
-    }
-  } catch {
-    // fallback if outside request context
-  }
-  // Si no hay cuenta autenticada, se almacena en local
-  return "local-user"
+  const sessionCookie = (await cookies()).get(SESSION_COOKIE_NAME)?.value
+  const session = verifySessionToken(sessionCookie, getSessionSecret())
+  if (!session) throw new Error("No hay una sesión válida. Recarga la página para crear una sesión de invitado.")
+  return `${session.kind === "user" ? "netlify" : "guest"}:${session.subject}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,15 +48,6 @@ export type TxInput = {
   type: TxType
   amount: number
   occurredAt?: string
-}
-
-export type Summary = {
-  balance: number
-  income: number
-  expenses: number
-  selectedYear: number
-  availableYears: number[]
-  monthly: { key: string; label: string; net: number; income: number; expense: number }[]
 }
 
 export type StockPosition = {
@@ -145,10 +74,6 @@ export type ProfileStats = {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function normalizeCategory(category: string): string {
-  return /devoluci[oó]n|reembolso|refund/i.test(category) ? "Reembolso" : category
-}
-
 function toTx(row: typeof transactions.$inferSelect): Tx {
   return {
     id: row.id,
@@ -159,19 +84,6 @@ function toTx(row: typeof transactions.$inferSelect): Tx {
     occurredAt: (row.occurredAt as Date).toISOString(),
   }
 }
-
-function validate(input: TxInput) {
-  const name = input.name?.trim()?.slice(0, 200)
-  const category = normalizeCategory(input.category?.trim()?.slice(0, 100) || "General")
-  const type: TxType = input.type === "income" ? "income" : "expense"
-  const amount = Math.abs(Number(input.amount))
-
-  if (!name) throw new Error("El nombre es obligatorio")
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("El importe debe ser mayor que 0")
-  return { name, category, type, amount }
-}
-
-const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transaction actions — Cached & Optimized
@@ -192,17 +104,6 @@ export async function getTransactions(): Promise<Tx[]> {
 
 export async function getSummary(targetYear?: number): Promise<Summary> {
   const txs = await getTransactions()
-  const currentYear = new Date().getFullYear()
-
-  // Dynamic available years from dataset
-  const yearSet = new Set<number>([currentYear])
-  for (const t of txs) {
-    const y = new Date(t.occurredAt).getFullYear()
-    if (!isNaN(y)) yearSet.add(y)
-  }
-  const availableYears = [...yearSet].sort((a, b) => b - a)
-
-  // Check cookie if targetYear not explicitly provided
   let cookieYear: number | undefined
   if (!targetYear) {
     try {
@@ -210,76 +111,12 @@ export async function getSummary(targetYear?: number): Promise<Summary> {
       const rawCookie = cookieStore.get("finflow_selected_year")?.value
       if (rawCookie) {
         const parsed = Number(rawCookie)
-        if (parsed && availableYears.includes(parsed)) {
-          cookieYear = parsed
-        }
+        if (parsed) cookieYear = parsed
       }
     } catch {}
   }
 
-  const desiredYear = targetYear || cookieYear
-
-  // Select desiredYear if specified and available, otherwise pick the year with transactions or currentYear
-  let selectedYear = desiredYear && availableYears.includes(desiredYear) ? desiredYear : currentYear
-
-  if (!desiredYear) {
-    const hasTxsInCurrentYear = txs.some((t) => new Date(t.occurredAt).getFullYear() === currentYear)
-    if (!hasTxsInCurrentYear && availableYears.length > 0) {
-      const yearWithTxs = availableYears.find((y) => txs.some((t) => new Date(t.occurredAt).getFullYear() === y))
-      if (yearWithTxs) selectedYear = yearWithTxs
-    }
-  }
-
-  let income = 0
-  let expenses = 0
-  for (const t of txs) {
-    if (isInvestmentTx(t)) continue // skip capital transfers
-    const d = new Date(t.occurredAt)
-    if (d.getFullYear() === selectedYear) {
-      if (t.type === "income") income += t.amount
-      else expenses += t.amount
-    }
-  }
-
-  // Always start in Enero (index 0) through Diciembre (index 11) for selectedYear
-  const buckets: { key: string; label: string; net: number; income: number; expense: number }[] = []
-  for (let m = 0; m < 12; m++) {
-    buckets.push({ key: `${selectedYear}-${m}`, label: MONTH_LABELS[m], net: 0, income: 0, expense: 0 })
-  }
-  const byKey = new Map(buckets.map((b) => [b.key, b]))
-
-  for (const t of txs) {
-    if (isInvestmentTx(t)) continue // skip capital transfers
-    const d = new Date(t.occurredAt)
-    if (d.getFullYear() === selectedYear) {
-      const bucket = byKey.get(`${selectedYear}-${d.getMonth()}`)
-      if (bucket) {
-        if (t.type === "income") {
-          bucket.income += t.amount
-          bucket.net += t.amount
-        } else {
-          bucket.expense += t.amount
-          bucket.net -= t.amount
-        }
-      }
-    }
-  }
-
-  const round2 = (n: number) => Math.round(n * 100) / 100
-
-  return {
-    balance: round2(income - expenses),
-    income: round2(income),
-    expenses: round2(expenses),
-    selectedYear,
-    availableYears,
-    monthly: buckets.map((b) => ({
-      ...b,
-      net: round2(b.net),
-      income: round2(b.income),
-      expense: round2(b.expense),
-    })),
-  }
+  return calculateSummary(txs, targetYear, cookieYear)
 }
 
 function revalidateAllPaths() {
@@ -291,7 +128,7 @@ function revalidateAllPaths() {
 export async function createTransaction(input: TxInput) {
   const activeUserId = await getActiveUserId()
   if (!activeUserId) return
-  const { name, category, type, amount } = validate(input)
+  const { name, category, type, amount } = validateTransactionInput(input)
   await db.insert(transactions).values({
     userId: activeUserId,
     name,
@@ -306,7 +143,7 @@ export async function createTransaction(input: TxInput) {
 export async function updateTransaction(id: number, input: TxInput) {
   const activeUserId = await getActiveUserId()
   if (!activeUserId) return
-  const { name, category, type, amount } = validate(input)
+  const { name, category, type, amount } = validateTransactionInput(input)
   await db
     .update(transactions)
     .set({ name, category, type, amount: amount.toFixed(2), ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}) })
@@ -328,7 +165,7 @@ export async function createTransactionsBulk(inputs: TxInput[]) {
   const records = []
   for (const input of inputs) {
     try {
-      const { name, category, type, amount } = validate(input)
+      const { name, category, type, amount } = validateTransactionInput(input)
       const occurredDate = input.occurredAt ? new Date(input.occurredAt) : new Date()
       records.push({
         userId: activeUserId,

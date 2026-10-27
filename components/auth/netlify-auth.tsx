@@ -58,14 +58,10 @@ function getWidget() {
   return win.netlifyIdentity || null
 }
 
-function syncUserCookie(user: NetlifyUser | null) {
+function clearLegacyUserCookie() {
   if (typeof document === "undefined") return
   const isSecure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
-  if (user && user.email) {
-    document.cookie = `finflow_user_id=${encodeURIComponent(user.email)}; path=/; max-age=31536000; SameSite=Lax${isSecure}`
-  } else {
-    document.cookie = `finflow_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax${isSecure}`
-  }
+  document.cookie = `finflow_user_id=; path=/; max-age=0; SameSite=Lax${isSecure}`
 }
 
 function cleanNetlifyHash() {
@@ -93,16 +89,13 @@ function cleanupWidgetIframe() {
 }
 
 async function syncServerSession(token?: string) {
-  if (!token) return
-  try {
-    await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
-  } catch {
-    // Non-fatal: finflow_session will be missing but finflow_user_id is available as fallback
-  }
+  if (!token) throw new Error("Netlify Identity did not provide an access token")
+  const response = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  })
+  if (!response.ok) throw new Error(`Secure session setup failed (${response.status})`)
 }
 
 export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
@@ -111,7 +104,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
 
   function updateUserState(parsed: NetlifyUser | null) {
     setUser(parsed)
-    syncUserCookie(parsed)
+    clearLegacyUserCookie()
     if (parsed) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
     } else {
@@ -136,14 +129,17 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
           name: netUser.user_metadata?.full_name || netUser.email?.split("@")[0] || "Usuario Google",
           avatar: netUser.user_metadata?.avatar_url || "/avatar.png",
         }
-        updateUserState(parsed)
-
         try { widget.close() } catch {}
         cleanupWidgetIframe()
 
-        const accessToken = netUser.token?.access_token || (await netUser.jwt?.())
-        if (accessToken) {
+        try {
+          const accessToken = netUser.token?.access_token || (await netUser.jwt?.())
           await syncServerSession(accessToken)
+          updateUserState(parsed)
+        } catch (error) {
+          console.error("Could not establish a secure user session:", error)
+          updateUserState(null)
+          return
         }
 
         if (isFromRedirect && typeof window !== "undefined") {
@@ -208,7 +204,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored)
         setUser(parsed)
-        syncUserCookie(parsed)
+        clearLegacyUserCookie()
       }
     } catch {
       // ignore
@@ -230,14 +226,16 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function logout() {
-    const widget = getWidget()
-    if (widget) {
-      widget.logout()
+  async function logout() {
+    try {
+      const response = await fetch("/api/auth/session", { method: "DELETE" })
+      if (!response.ok) throw new Error(`Session logout failed (${response.status})`)
+      const widget = getWidget()
+      if (widget) widget.logout()
+      updateUserState(null)
+    } catch (error) {
+      console.error("Could not clear the server session:", error)
     }
-    // Clear server-side HttpOnly session cookie and client fallback cookie
-    fetch("/api/auth/session", { method: "DELETE" }).catch(() => {})
-    updateUserState(null)
   }
 
   return (

@@ -1,0 +1,142 @@
+{
+  "kanvas": 1,
+  "title": "FinPer",
+  "groups": [
+    {
+      "id": "IN",
+      "name": "Inversiones"
+    },
+    {
+      "id": "CI",
+      "name": "Critical Improvements"
+    },
+    {
+      "id": "HP",
+      "name": "High Priority"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "IN-01",
+      "title": "Optimizar actualizacion y polling de cotizaciones",
+      "state": "done",
+      "group": "IN",
+      "desc": "Implementando StockQuotesProvider unificado en app/inversiones para solicitar todas las cotizaciones de cartera y watchlist en una sola peticion batch combinada. Sincronizando polling activo a 20s y anadiendo cache local para carga instantanea a 0ms."
+    },
+    {
+      "id": "IN-02",
+      "title": "Corregir resolucion de icono para USOIL",
+      "state": "done",
+      "group": "IN",
+      "desc": "Arreglar getTradingViewLogoUrl para evitar duplicar el sufijo --big que causaba 403 en crude-oil--big.svg y priorizar logoid de la cotizacion en vivo."
+    },
+    {
+      "id": "IN-03",
+      "title": "Crear endpoint GET /api/watch-list",
+      "state": "done",
+      "group": "IN",
+      "desc": "Implementar endpoint GET /api/watch-list que consulte los simbolos de seguimiento por defecto desde el servidor, similar a market-indices."
+    },
+    {
+      "id": "CI-01",
+      "title": "Asegurar identidad y propiedad de datos",
+      "state": "review",
+      "group": "CI",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Evitar que datos financieros de distintas personas queden asociados a una identidad compartida o a una cookie controlada por el cliente. Usar una sesion de servidor verificada y un identificador de usuario estable; definir el comportamiento anonimo y como migrar los datos existentes. Terminado cuando las operaciones de lectura y escritura se limitan a la identidad verificada y existe una ruta de migracion probada.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:18Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-27T17:23:08Z",
+          "by": "copilot",
+          "text": "Question: El modo anonimo actualmente comparte el userId local-user. Para aislar los datos, prefieres permitir un perfil invitado privado por navegador, o exigir iniciar sesion para usar las funciones financieras? Los datos existentes bajo local-user no se pueden atribuir de forma segura a una persona."
+        },
+        {
+          "at": "2026-10-27T17:23:29Z",
+          "by": "copilot",
+          "text": "Decision: mantener el modo invitado, aislando los datos por navegador. Los registros preexistentes con userId local-user no se reasignaran automaticamente porque su propietario no puede determinarse."
+        },
+        {
+          "at": "2026-10-27T17:33:12Z",
+          "by": "copilot",
+          "text": "Sesiones HMAC para cuentas Netlify estables e invitados aislados por navegador; al iniciar sesion migra el correo y el perfil invitado en una transaccion. Los datos local-user quedan sin reasignar por no poder atribuirse con seguridad. Configurar FINPER_SESSION_SECRET en produccion. Verificado: build, TypeScript y smoke HTTP 200; revisar la migracion sobre una base real antes de aceptar."
+        }
+      ]
+    },
+    {
+      "id": "CI-02",
+      "title": "Anadir pruebas para reglas financieras",
+      "state": "review",
+      "group": "CI",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Crear una base de pruebas automatizadas para validacion de transacciones, resumenes, divisas y clasificacion de gastos frente a inversiones. Terminado cuando las reglas criticas tienen casos limite cubiertos y las pruebas se pueden ejecutar mediante un script documentado.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:19Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-27T17:33:13Z",
+          "by": "copilot",
+          "text": "Anadidas pruebas automatizadas para validacion de transacciones, resumenes anuales y mensuales, clasificacion de inversiones, formato monetario y conversiones. Verificado: npm test (8/8), npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-01",
+      "title": "Validar estrictamente entradas financieras",
+      "state": "todo",
+      "group": "HP",
+      "deps": ["CI-02"],
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Rechazar tipos de transaccion desconocidos y valores invalidos en las acciones de servidor, en vez de convertirlos silenciosamente a gasto o corregir importes con valor absoluto. Reutilizar esquemas de validacion en los limites relevantes. Terminado cuando entradas invalidas producen errores claros y las validas conservan el comportamiento actual.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:20Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        }
+      ]
+    },
+    {
+      "id": "HP-02",
+      "title": "Centralizar limites de solicitudes costosas",
+      "state": "todo",
+      "group": "HP",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Sustituir el limite en memoria por instancia por un mecanismo compartido entre instancias para proteger endpoints de IA y procesamiento de extractos. Terminado cuando los limites se aplican coherentemente en despliegues con varias instancias y hay configuracion y manejo de errores documentados.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:21Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        }
+      ]
+    },
+    {
+      "id": "HP-04",
+      "title": "Actualizar documentacion y guia de inicio",
+      "state": "todo",
+      "group": "HP",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Completar el README con requisitos, configuracion, ejecucion y validacion; corregir enlaces rotos y documentar el stack que realmente usa el proyecto. Terminado cuando una persona puede arrancar el proyecto desde cero siguiendo las instrucciones y la documentacion coincide con dependencias y codigo actuales.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:23Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        }
+      ]
+    }
+  ]
+}

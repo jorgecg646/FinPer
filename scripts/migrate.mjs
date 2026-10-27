@@ -40,7 +40,7 @@ const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false 
 const SQL = `
 CREATE TABLE IF NOT EXISTS transactions (
   "id"          SERIAL PRIMARY KEY,
-  "userId"      TEXT NOT NULL DEFAULT 'local-user',
+  "userId"      TEXT NOT NULL,
   "name"        TEXT NOT NULL,
   "category"    TEXT NOT NULL,
   "type"        TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE TABLE IF NOT EXISTS stock_positions (
   "id"        SERIAL PRIMARY KEY,
-  "userId"    TEXT NOT NULL DEFAULT 'local-user',
+  "userId"    TEXT NOT NULL,
   "symbol"    TEXT NOT NULL,
   "label"     TEXT NOT NULL,
   "shares"    NUMERIC(18, 6),
@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS stock_positions (
 );
 
 ALTER TABLE stock_positions ADD COLUMN IF NOT EXISTS "avgFxRate" NUMERIC(18, 6);
+ALTER TABLE transactions ALTER COLUMN "userId" DROP DEFAULT;
+ALTER TABLE stock_positions ALTER COLUMN "userId" DROP DEFAULT;
 `
 
 ;(async () => {

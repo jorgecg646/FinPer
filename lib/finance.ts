@@ -3,7 +3,7 @@ import type { Tx } from "@/app/actions"
 /**
  * Checks if a transaction represents an investment/broker/crypto transfer rather than day-to-day living expense
  */
-export function isInvestmentTx(t: Tx): boolean {
+export function isInvestmentTx(t: Pick<Tx, "name" | "category">): boolean {
   const cat = (t.category || "").toLowerCase()
   const name = (t.name || "").toLowerCase()
   const pattern = /invers|trading|broker|myinvestor|trade|crypto|cripto|acciones|fondos|etf|bitcoin|binance|degiro|bolsa|patrimonio/i
