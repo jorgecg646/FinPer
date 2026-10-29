@@ -14,7 +14,14 @@ import {
   type TransactionImportRejection as ImportRejection,
 } from "@/lib/transaction-validation"
 import { db, stockPositions, transactions } from "@/lib/db"
-import { getSessionSecret, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session"
+import {
+  GUEST_SESSION_COOKIE_NAME,
+  isGuestSessionId,
+  SESSION_COOKIE_NAME,
+  verifyNetlifyIdentityToken,
+} from "@/lib/auth-session"
+
+const getNetlifyIdentityUser = cache(verifyNetlifyIdentityToken)
 
 export type { Summary } from "@/lib/finance-summary"
 
@@ -25,13 +32,21 @@ export type { Summary } from "@/lib/finance-summary"
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Resolve the authenticated account or browser-isolated guest session from its signed cookie.
+ * Resolve the account from its validated Netlify token, or use the browser's guest session.
  */
 export async function getActiveUserId(): Promise<string> {
-  const sessionCookie = (await cookies()).get(SESSION_COOKIE_NAME)?.value
-  const session = verifySessionToken(sessionCookie, getSessionSecret())
-  if (!session) throw new Error("No hay una sesión válida. Recarga la página para crear una sesión de invitado.")
-  return `${session.kind === "user" ? "netlify" : "guest"}:${session.subject}`
+  const cookieStore = await cookies()
+  const accessToken = cookieStore.get(SESSION_COOKIE_NAME)?.value
+  if (accessToken) {
+    const identityUser = await getNetlifyIdentityUser(accessToken)
+    return `netlify:${identityUser.id}`
+  }
+
+  const guestSessionId = cookieStore.get(GUEST_SESSION_COOKIE_NAME)?.value
+  if (!isGuestSessionId(guestSessionId)) {
+    throw new Error("No hay una sesión de invitado válida. Recarga la página para crear una nueva.")
+  }
+  return `guest:${guestSessionId}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

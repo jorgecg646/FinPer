@@ -64,7 +64,7 @@
         {
           "at": "2026-10-27T17:33:12Z",
           "by": "copilot",
-          "text": "Sesiones HMAC para cuentas Netlify estables e invitados aislados por navegador; al iniciar sesion migra el correo y el perfil invitado en una transaccion. Los datos local-user quedan sin reasignar por no poder atribuirse con seguridad. Configurar FINPER_SESSION_SECRET en produccion. Verificado: build, TypeScript y smoke HTTP 200; revisar la migracion sobre una base real antes de aceptar."
+          "text": "Las cuentas Netlify se identifican validando su token con Netlify Identity; los invitados tienen un UUID aleatorio por navegador. El inicio de sesion migra el correo y el perfil invitado en una transaccion. Los datos local-user quedan sin reasignar por no poder atribuirse con seguridad. No se requiere una clave de sesion adicional."
         }
       ]
     },
@@ -288,7 +288,7 @@
     {
       "id": "CI-04",
       "title": "Eliminar regex vulnerable en símbolo bursátil",
-      "state": "review",
+      "state": "done",
       "group": "CI",
       "at": "2026-10-29T18:14:48Z",
       "by": "agent",

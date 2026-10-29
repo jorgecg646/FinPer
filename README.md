@@ -32,7 +32,6 @@ FinPer is a personal finance dashboard for tracking spending, income, subscripti
    - GEMINI_API_KEY
    - NEXT_PUBLIC_TURNSTILE_SITE_KEY
    - TURNSTILE_SECRET_KEY
-   - FINPER_SESSION_SECRET (minimum 32 characters)
    - `FINPER_RATE_LIMIT_BACKEND` es opcional: usa `memory` en desarrollo y `postgres` en producción por defecto.
 
 4. Run the idempotent migration/bootstrap script, including for an existing database, to create any missing tables and indexes:
@@ -54,7 +53,7 @@ Then open http://localhost:3000.
 
 ## Security and session model
 
-- Server-side sessions are signed with `FINPER_SESSION_SECRET` and stored in the `finflow_session` cookie.
+- Netlify Identity access tokens are stored in an HttpOnly cookie and validated with Netlify Identity. Guest sessions use a random browser-specific identifier.
 - Authenticated Netlify users and guests are kept separate by a stable server-side identifier, so data is never silently merged across identities.
 - The app rejects unknown transaction types and invalid amounts instead of coercing them silently. This keeps financial rules predictable and prevents hidden data corruption.
 

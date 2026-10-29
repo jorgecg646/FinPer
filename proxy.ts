@@ -1,33 +1,35 @@
 import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import {
-  createSessionToken,
+  GUEST_SESSION_COOKIE_NAME,
   GUEST_SESSION_MAX_AGE,
-  getSessionSecret,
   SESSION_COOKIE_NAME,
-  verifySessionToken,
+  isGuestSessionId,
 } from "@/lib/auth-session"
 
 export function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname === "/api/auth/session") {
-    return NextResponse.next()
+  const guestSessionId = request.cookies.get(GUEST_SESSION_COOKIE_NAME)?.value
+  const newGuestSessionId = isGuestSessionId(guestSessionId) ? undefined : randomUUID()
+
+  if (newGuestSessionId) {
+    request.cookies.set(GUEST_SESSION_COOKIE_NAME, newGuestSessionId)
   }
 
-  const secret = getSessionSecret()
-  const currentToken = request.cookies.get(SESSION_COOKIE_NAME)?.value
-  const currentSession = verifySessionToken(currentToken, secret)
-  if (currentSession) return NextResponse.next()
-
-  const guestToken = createSessionToken(randomUUID(), "guest", secret)
-  request.cookies.set(SESSION_COOKIE_NAME, guestToken)
   const response = NextResponse.next({ request: { headers: request.headers } })
-  response.cookies.set(SESSION_COOKIE_NAME, guestToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: GUEST_SESSION_MAX_AGE,
-  })
+  if (newGuestSessionId) {
+    response.cookies.set(GUEST_SESSION_COOKIE_NAME, newGuestSessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: GUEST_SESSION_MAX_AGE,
+    })
+  }
+
+  if (request.cookies.has("finflow_session")) {
+    response.cookies.set("finflow_session", "", { path: "/", maxAge: 0 })
+  }
+
   return response
 }
 

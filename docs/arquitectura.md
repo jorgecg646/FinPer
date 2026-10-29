@@ -40,8 +40,8 @@ Registra las posiciones abiertas en activos de inversión:
 - La divisa activa se almacena en la cookie `finflow_display_currency`; `finflow-currency` se conserva como clave heredada.
 - Monedas soportadas mediante `CURRENCY_SYMBOLS` en `lib/format.ts` (EUR `€`, USD `$`, GBP `£`, etc.).
 - Las conversiones y tasas en vivo se obtienen a través del endpoint `/api/fx-rate`.
-- La cookie HttpOnly `finflow_session` contiene una sesión firmada por el servidor; su clave `FINPER_SESSION_SECRET` debe tener al menos 32 caracteres. Consulta `.env.example` para generarla.
-- Los visitantes sin cuenta reciben una identidad invitada firmada y distinta por navegador. El servidor no usa una identidad compartida por defecto.
+- La cookie HttpOnly `finflow_identity_token` conserva el token de Netlify Identity; el servidor lo valida con Netlify al resolver la identidad. No requiere una clave de sesión adicional.
+- Los visitantes sin cuenta reciben una cookie HttpOnly con un UUID aleatorio por navegador. El servidor no usa una identidad compartida por defecto.
 - Al iniciar sesion, las transacciones asociadas al correo verificado y las posiciones asociadas se trasladan a la identidad estable de Netlify dentro de una transaccion.
 - Los registros antiguos con `userId = "local-user"` no se reasignan automaticamente: no es posible determinar a que persona pertenecen. Siguen en la base de datos, pero no se muestran a nuevos perfiles invitados ni cuentas.
 

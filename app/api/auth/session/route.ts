@@ -1,51 +1,35 @@
+import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import {
-  createSessionToken,
-  getSessionSecret,
+  GUEST_SESSION_COOKIE_NAME,
+  GUEST_SESSION_MAX_AGE,
+  isGuestSessionId,
   SESSION_COOKIE_NAME,
   USER_SESSION_MAX_AGE,
-  verifySessionToken,
+  verifyNetlifyIdentityToken,
 } from "@/lib/auth-session"
 import { pool } from "@/lib/db"
 import { migrateLegacyUserData } from "@/lib/user-data-migration"
 
-const NETLIFY_IDENTITY_URL = "https://budgetnext.netlify.app/.netlify/identity"
-
 export async function POST(req: NextRequest) {
   try {
     const body: unknown = await req.json()
-    if (!body || typeof body !== "object" || !("token" in body) || typeof body.token !== "string") {
-      return NextResponse.json({ error: "Missing token" }, { status: 400 })
-    }
-
-    const identityRes = await fetch(`${NETLIFY_IDENTITY_URL}/user`, {
-      headers: { Authorization: `Bearer ${body.token}` },
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!identityRes.ok) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const identityUser: unknown = await identityRes.json()
     if (
-      !identityUser ||
-      typeof identityUser !== "object" ||
-      !("id" in identityUser) ||
-      typeof identityUser.id !== "string" ||
-      !identityUser.id.trim() ||
-      !("email" in identityUser) ||
-      typeof identityUser.email !== "string" ||
-      !identityUser.email.trim()
+      !body ||
+      typeof body !== "object" ||
+      !("token" in body) ||
+      typeof body.token !== "string" ||
+      body.token.length > 16_384
     ) {
-      return NextResponse.json({ error: "Invalid identity response" }, { status: 401 })
+      return NextResponse.json({ error: "Missing or invalid token" }, { status: 400 })
     }
 
-    const sessionSecret = getSessionSecret()
+    const identityUser = await verifyNetlifyIdentityToken(body.token)
     const stableUserId = `netlify:${identityUser.id}`
-    const previousSession = verifySessionToken(req.cookies.get(SESSION_COOKIE_NAME)?.value, sessionSecret)
     const legacyUserIds = [identityUser.email]
-    if (previousSession?.kind === "guest") {
-      legacyUserIds.push(`guest:${previousSession.subject}`)
+    const guestSessionId = req.cookies.get(GUEST_SESSION_COOKIE_NAME)?.value
+    if (isGuestSessionId(guestSessionId)) {
+      legacyUserIds.push(`guest:${guestSessionId}`)
     }
 
     const client = await pool.connect()
@@ -70,22 +54,20 @@ export async function POST(req: NextRequest) {
     }
 
     const response = NextResponse.json({ ok: true, email: identityUser.email })
-    response.cookies.set(
-      SESSION_COOKIE_NAME,
-      createSessionToken(identityUser.id, "user", sessionSecret),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: USER_SESSION_MAX_AGE,
-      }
-    )
+    response.cookies.set(SESSION_COOKIE_NAME, body.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: USER_SESSION_MAX_AGE,
+    })
+    response.cookies.set("finflow_session", "", { path: "/", maxAge: 0 })
     response.cookies.set("finflow_user_id", "", { path: "/", maxAge: 0 })
     return response
   } catch (error) {
     console.error("[auth/session]", error)
-    return NextResponse.json({ error: "Unable to establish a secure session" }, { status: 500 })
+    const status = error instanceof Error && error.message.startsWith("Invalid Netlify Identity") ? 401 : 500
+    return NextResponse.json({ error: "Unable to establish a secure session" }, { status })
   }
 }
 
@@ -98,6 +80,14 @@ export async function DELETE() {
     path: "/",
     maxAge: 0,
   })
+  response.cookies.set(GUEST_SESSION_COOKIE_NAME, randomUUID(), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: GUEST_SESSION_MAX_AGE,
+  })
+  response.cookies.set("finflow_session", "", { path: "/", maxAge: 0 })
   response.cookies.set("finflow_user_id", "", { path: "/", maxAge: 0 })
   return response
 }
