@@ -1,5 +1,5 @@
 // Service Worker for BudgetNext PWA
-const CACHE_NAME = "budgetnext-pwa-v2"
+const CACHE_NAME = "budgetnext-pwa-v3"
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -35,6 +35,10 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return
 
   const url = new URL(event.request.url)
+
+  // Browser extensions can issue requests while a page is controlled by this worker.
+  // Cache Storage only accepts HTTP(S) requests.
+  if (url.protocol !== "http:" && url.protocol !== "https:") return
 
   // 1. Static Assets & External Logos (Stale-While-Revalidate)
   const isImageOrFont =
