@@ -267,7 +267,7 @@
     {
       "id": "CI-03",
       "title": "Forzar Secure al borrar cookie heredada",
-      "state": "review",
+      "state": "done",
       "group": "CI",
       "at": "2026-10-29T18:02:12Z",
       "by": "agent",
