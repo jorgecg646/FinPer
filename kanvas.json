@@ -1,0 +1,310 @@
+{
+  "kanvas": 1,
+  "title": "FinPer",
+  "groups": [
+    {
+      "id": "IN",
+      "name": "Inversiones"
+    },
+    {
+      "id": "CI",
+      "name": "Critical Improvements"
+    },
+    {
+      "id": "HP",
+      "name": "High Priority"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "IN-01",
+      "title": "Optimizar actualizacion y polling de cotizaciones",
+      "state": "done",
+      "group": "IN",
+      "desc": "Implementando StockQuotesProvider unificado en app/inversiones para solicitar todas las cotizaciones de cartera y watchlist en una sola peticion batch combinada. Sincronizando polling activo a 20s y anadiendo cache local para carga instantanea a 0ms."
+    },
+    {
+      "id": "IN-02",
+      "title": "Corregir resolucion de icono para USOIL",
+      "state": "done",
+      "group": "IN",
+      "desc": "Arreglar getTradingViewLogoUrl para evitar duplicar el sufijo --big que causaba 403 en crude-oil--big.svg y priorizar logoid de la cotizacion en vivo."
+    },
+    {
+      "id": "IN-03",
+      "title": "Crear endpoint GET /api/watch-list",
+      "state": "done",
+      "group": "IN",
+      "desc": "Implementar endpoint GET /api/watch-list que consulte los simbolos de seguimiento por defecto desde el servidor, similar a market-indices."
+    },
+    {
+      "id": "CI-01",
+      "title": "Asegurar identidad y propiedad de datos",
+      "state": "done",
+      "group": "CI",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Evitar que datos financieros de distintas personas queden asociados a una identidad compartida o a una cookie controlada por el cliente. Usar una sesion de servidor verificada y un identificador de usuario estable; definir el comportamiento anonimo y como migrar los datos existentes. Terminado cuando las operaciones de lectura y escritura se limitan a la identidad verificada y existe una ruta de migracion probada.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:18Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-27T17:23:08Z",
+          "by": "copilot",
+          "text": "Question: El modo anonimo actualmente comparte el userId local-user. Para aislar los datos, prefieres permitir un perfil invitado privado por navegador, o exigir iniciar sesion para usar las funciones financieras? Los datos existentes bajo local-user no se pueden atribuir de forma segura a una persona."
+        },
+        {
+          "at": "2026-10-27T17:23:29Z",
+          "by": "copilot",
+          "text": "Decision: mantener el modo invitado, aislando los datos por navegador. Los registros preexistentes con userId local-user no se reasignaran automaticamente porque su propietario no puede determinarse."
+        },
+        {
+          "at": "2026-10-27T17:33:12Z",
+          "by": "copilot",
+          "text": "Sesiones HMAC para cuentas Netlify estables e invitados aislados por navegador; al iniciar sesion migra el correo y el perfil invitado en una transaccion. Los datos local-user quedan sin reasignar por no poder atribuirse con seguridad. Configurar FINPER_SESSION_SECRET en produccion. Verificado: build, TypeScript y smoke HTTP 200; revisar la migracion sobre una base real antes de aceptar."
+        }
+      ]
+    },
+    {
+      "id": "CI-02",
+      "title": "Anadir pruebas para reglas financieras",
+      "state": "done",
+      "group": "CI",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Crear una base de pruebas automatizadas para validacion de transacciones, resumenes, divisas y clasificacion de gastos frente a inversiones. Terminado cuando las reglas criticas tienen casos limite cubiertos y las pruebas se pueden ejecutar mediante un script documentado.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:19Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-27T17:33:13Z",
+          "by": "copilot",
+          "text": "Anadidas pruebas automatizadas para validacion de transacciones, resumenes anuales y mensuales, clasificacion de inversiones, formato monetario y conversiones. Verificado: npm test (8/8), npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-01",
+      "title": "Validar estrictamente entradas financieras",
+      "state": "done",
+      "group": "HP",
+      "deps": ["CI-02"],
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Rechazar tipos de transaccion desconocidos y valores invalidos en las acciones de servidor, en vez de convertirlos silenciosamente a gasto o corregir importes con valor absoluto. Reutilizar esquemas de validacion en los limites relevantes. Terminado cuando entradas invalidas producen errores claros y las validas conservan el comportamiento actual.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:20Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:04Z",
+          "by": "agent",
+          "text": "Reviso la validacion de transacciones y preparo los ajustes para rechazar entradas invalidas con errores claros."
+        },
+        {
+          "at": "2026-10-29T17:31:31Z",
+          "by": "agent",
+          "text": "He reforzado la validacion de transacciones: rechaza tipos desconocidos, exige importe > 0 y mantiene el comportamiento normal para entradas validas. Verificado: npm test, npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-06",
+      "title": "Completar rate limiting distribuido",
+      "state": "done",
+      "group": "HP",
+      "deps": ["HP-02"],
+      "at": "2026-10-29T17:33:58Z",
+      "by": "agent",
+      "desc": "Sustituir el límite únicamente en memoria por un contador compartido y atómico para proteger los endpoints de IA y parseo PDF en despliegues con varias instancias. Mantener el modo local solo para desarrollo, definir configuración y errores explícitos si el backend compartido falla y cubrir límites, ventanas y concurrencia con pruebas. Al aprobarla, confirmar el proveedor disponible (por ejemplo Upstash/Redis o PostgreSQL compartido) antes de añadir infraestructura.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:44:51Z",
+          "by": "agent",
+          "text": "Plan: usar PostgreSQL ya configurado como almacenamiento compartido con incremento atómico, añadir migración idempotente, modo local de desarrollo y errores explícitos; validar límite, expiración y concurrencia."
+        },
+        {
+          "at": "2026-10-29T17:54:11Z",
+          "by": "agent",
+          "text": "Los límites de IA y parseo PDF usan contadores PostgreSQL compartidos y atómicos; producción usa Postgres por defecto, desarrollo conserva memoria, y si falla el almacenamiento se responde 503 sin saltarse el límite. Añadí tabla/migración idempotente y limpieza de ventanas. Tests, TypeScript y build pasan; no apliqué la migración ni probé concurrencia entre instancias contra una base real. Ejecutar npm run migrate y confirmar FINPER_RATE_LIMIT_BACKEND=postgres en producción."
+        }
+      ]
+    },
+    {
+      "id": "HP-02",
+      "title": "Centralizar limites de solicitudes costosas",
+      "state": "done",
+      "group": "HP",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Sustituir el limite en memoria por instancia por un mecanismo compartido entre instancias para proteger endpoints de IA y procesamiento de extractos. Terminado cuando los limites se aplican coherentemente en despliegues con varias instancias y hay configuracion y manejo de errores documentados.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:21Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:06Z",
+          "by": "agent",
+          "text": "Reviso los rate limits y preparo una capa de almacenamiento compartido con fallback seguro."
+        },
+        {
+          "at": "2026-10-29T17:31:33Z",
+          "by": "agent",
+          "text": "He centralizado la logica de rate limiting en lib/rate-limit.ts con un backend configurable y un fallback seguro; la base sigue en memoria por defecto y admite desactivar o externalizar el almacenamiento para despliegues multi-instancia. Verificado: npm test, npx tsc --noEmit y npm run build."
+        },
+        {
+          "at": "2026-10-29T17:33:57Z",
+          "by": "agent",
+          "text": "Aclaración para revisión: la implementación actual sigue usando un Map en memoria por proceso. FINPER_RATE_LIMIT_BACKEND=global no activa ningún backend compartido; por tanto, el límite aún no está distribuido entre instancias."
+        }
+      ]
+    },
+    {
+      "id": "HP-04",
+      "title": "Actualizar documentacion y guia de inicio",
+      "state": "done",
+      "group": "HP",
+      "at": "2026-10-27T17:13:49Z",
+      "by": "copilot",
+      "desc": "Completar el README con requisitos, configuracion, ejecucion y validacion; corregir enlaces rotos y documentar el stack que realmente usa el proyecto. Terminado cuando una persona puede arrancar el proyecto desde cero siguiendo las instrucciones y la documentacion coincide con dependencias y codigo actuales.",
+      "notes": [
+        {
+          "at": "2026-10-27T17:14:23Z",
+          "by": "copilot",
+          "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:08Z",
+          "by": "agent",
+          "text": "Actualizo la documentacion de arranque y entorno para que el proyecto se pueda poner en marcha desde cero."
+        },
+        {
+          "at": "2026-10-29T17:31:34Z",
+          "by": "agent",
+          "text": "He actualizado README y .env.example con requisitos, arranque, variables de entorno y guia de validacion para poner en marcha la app desde cero. Verificado: npm test, npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-05",
+      "title": "Optimizar consultas a base de datos y cache de transacciones",
+      "state": "done",
+      "group": "HP",
+      "at": "2026-10-27T21:02:58Z",
+      "by": "antigravity",
+      "desc": "Reducir consultas y coste de ordenación al cargar transacciones: medir primero las consultas reales, añadir índices compuestos solo donde el patrón lo justifique y deduplicar lecturas por render con React.cache() si evita consultas repetidas. Incluir una migración PostgreSQL idempotente y verificable. Terminado cuando el comportamiento y orden de resultados se conservan, las consultas repetidas se reducen y la migración y pruebas confirman el cambio; no asumir planes de ejecución sin medirlos.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:33:57Z",
+          "by": "agent",
+          "text": "Agrupo en una sola tarea el análisis de consultas, índices, deduplicación y migración segura; quito la afirmación no verificada de que siempre hay sequential scans."
+        },
+        {
+          "at": "2026-10-29T17:44:50Z",
+          "by": "agent",
+          "text": "Plan: comprobar los patrones de lectura y esquema actuales; aplicar índices/migración idempotente y deduplicación de consultas solo donde el acceso real lo justifique, preservando orden y aislamiento por usuario."
+        },
+        {
+          "at": "2026-10-29T17:54:10Z",
+          "by": "agent",
+          "text": "La consulta por usuario conserva su orden y ahora tiene un índice compuesto alineado con esos filtros; getTransactions deduplica lecturas dentro del render con React.cache(). Añadí la creación idempotente del índice a npm run migrate. Tests, TypeScript y build pasan. No ejecuté la migración contra la base externa: aplicarla antes de desplegar y verificar el plan de consulta allí."
+        }
+      ]
+    },
+    {
+      "id": "HP-07",
+      "title": "Validar fechas y reportar filas de importación",
+      "state": "done",
+      "group": "HP",
+      "deps": ["HP-01"],
+      "at": "2026-10-29T17:33:59Z",
+      "by": "agent",
+      "desc": "Completar la validación financiera en las acciones del servidor: rechazar fechas inválidas en altas y ediciones, y devolver un resultado claro de importación masiva con filas aceptadas/rechazadas y motivo, en vez de sustituir fechas o descartar filas inválidas silenciosamente. Mantener el comportamiento de las filas válidas y cubrir los casos con pruebas.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:44:52Z",
+          "by": "agent",
+          "text": "Plan: rechazar fechas inválidas en acciones y devolver resultados comprensibles para importación masiva, conservando las filas válidas y añadiendo cobertura de casos límite."
+        },
+        {
+          "at": "2026-10-29T17:54:12Z",
+          "by": "agent",
+          "text": "Las acciones rechazan fechas inválidas y la importación masiva conserva las filas válidas, inserta el lote de forma transaccional y devuelve fila/concepto/motivo para cada rechazo; la pantalla muestra el resultado parcial o total. Añadí pruebas para fechas y resultados por fila. Tests, TypeScript y build pasan."
+        }
+      ]
+    },
+    {
+      "id": "IN-04",
+      "title": "Ocultar lista de seguimiento al entrar en inversiones",
+      "state": "done",
+      "group": "IN",
+      "at": "2026-10-29T17:36:09Z",
+      "by": "agent",
+      "desc": "Al entrar en Inversiones, la lista de seguimiento debe iniciar cerrada tanto en móvil como en escritorio, independientemente de la última preferencia guardada. El botón para abrir/cerrar debe seguir funcionando y el estado visual del contenido debe sincronizarse. Terminado cuando la lista permanece oculta al navegar o recargar la página en ambos tamaños de pantalla y se puede abrir manualmente.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:36:50Z",
+          "by": "agent",
+          "text": "Plan: al montar la página de Inversiones, forzar la lista cerrada en móvil y escritorio; retirar la restauración de la preferencia anterior y mantener sincronizado el offset del contenido y el botón de apertura."
+        },
+        {
+          "at": "2026-10-29T17:38:41Z",
+          "by": "agent",
+          "text": "Al abrir Inversiones, la lista de seguimiento queda cerrada tanto en móvil como en escritorio, aunque antes se hubiera abierto; el botón de abrir/cerrar y el ajuste del contenido siguen sincronizados. npm test, npx tsc --noEmit y npm run build pasan. No se pudo ejecutar una comprobación visual en navegador; revisar una entrada a Inversiones en ambos tamaños de pantalla."
+        }
+      ]
+    },
+    {
+      "id": "CI-03",
+      "title": "Forzar Secure al borrar cookie heredada",
+      "state": "done",
+      "group": "CI",
+      "at": "2026-10-29T18:02:12Z",
+      "by": "agent",
+      "desc": "Eliminar la cookie heredada finflow_user_id con el atributo Secure siempre presente para que CodeQL no detecte una cookie sin protección de transporte. Confirmar que el comportamiento de borrado y el inicio de sesión siguen correctos en HTTPS; revisar el caso de desarrollo local HTTP, sin afectar a la cookie de sesión firmada HttpOnly.",
+      "notes": [
+        {
+          "at": "2026-10-29T18:03:37Z",
+          "by": "agent",
+          "text": "Plan: añadir Secure siempre a la cookie expirada; mantener atributos de borrado y verificar build/typecheck. En HTTP local puede no borrarse, pero el camino de producción HTTPS queda protegido."
+        },
+        {
+          "at": "2026-10-29T18:04:39Z",
+          "by": "agent",
+          "text": "El borrado de la cookie heredada finflow_user_id ahora siempre incluye Secure y conserva path, max-age=0 y SameSite=Lax. TypeScript y build de producción pasan. En desarrollo HTTP el navegador puede no permitir borrar una cookie Secure; la cookie de sesión firmada no se modifica."
+        }
+      ]
+    },
+    {
+      "id": "CI-04",
+      "title": "Eliminar regex vulnerable en símbolo bursátil",
+      "state": "review",
+      "group": "CI",
+      "at": "2026-10-29T18:14:48Z",
+      "by": "agent",
+      "desc": "Resolver la alerta CodeQL de posible regex polynomial en app/api/stock-price/route.ts:41, donde se analiza un símbolo externo para deducir el logo. Sustituirla por parseo acotado y determinista o una expresión segura, conservando el reconocimiento de pares y prefijos actuales. Añadir pruebas para símbolos válidos y entradas largas/repetitivas, y confirmar que CodeQL deja de señalar el flujo.",
+      "notes": [
+        {
+          "at": "2026-10-29T18:15:47Z",
+          "by": "agent",
+          "text": "Plan: reemplazar el regex por un parser lineal y de longitud acotada para prefijos y sufijos de mercados, cubrir símbolos válidos y entradas repetitivas con pruebas, y volver a publicar la rama de la PR."
+        },
+        {
+          "at": "2026-10-29T18:17:59Z",
+          "by": "agent",
+          "text": "Eliminé la expresión regular del análisis de símbolos: ahora se limita la entrada a 128 caracteres y se extraen prefijos/sufijos con operaciones lineales deterministas. Se conservan los logos de criptomonedas, materias primas y metadatos de TradingView; añadí pruebas para símbolos válidos y cadenas largas repetitivas. npm test (16), TypeScript y build pasan. CodeQL volverá a ejecutarse al subir la rama."
+        }
+      ]
+    }
+  ]
+}

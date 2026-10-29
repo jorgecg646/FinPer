@@ -7,15 +7,14 @@ import { BarChart2, Plus, Minus, Wallet } from "lucide-react"
 import { upsertStockPosition, deleteStockPosition } from "@/app/actions"
 import type { StockPosition } from "@/app/actions"
 import { CURRENCIES, CURRENCY_SYMBOLS, DISPLAY_CURRENCY_KEY, getFxPair, fmtCurrency, fmtSignedCurrency, fmtPercent, getClientCurrency, setStoredCurrency } from "@/lib/format"
-import { useVisibilityPolling } from "@/lib/hooks"
 import { Pie } from "@visx/shape"
 import { Group } from "@visx/group"
 import {
   TickerCard,
   AddSymbolModal,
   FinancialNewsTickerBar,
-  fetchQuotes,
 } from "./stock-widgets"
+import { useStockQuotes } from "./stock-quotes-context"
 import type { StockQuote } from "./stock-widgets"
 import {
   ASSET_COLORS,
@@ -356,10 +355,7 @@ export function StockPricesPanel({
   const [currentPrices, setCurrentPrices] = useState<
     Record<string, { price: number; currency: string }>
   >({})
-  const [quotes, setQuotes] = useState<Record<string, StockQuote>>({})
-  const [quoteStatuses, setQuoteStatuses] = useState<
-    Record<string, "idle" | "loading" | "ok" | "error">
-  >({})
+  const { quotes, statuses: quoteStatuses, registerSymbols, refreshQuote } = useStockQuotes()
   const [displayCurrency, setDisplayCurrency] = useState("EUR")
   const [fxRates, setFxRates] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<
@@ -397,64 +393,25 @@ export function StockPricesPanel({
     []
   )
 
-  const positionsRef = useRef(positions)
-  positionsRef.current = positions
-
-  const fetchAllQuotes = useCallback(
-    async (customSymbols?: string[]) => {
-      const syms = customSymbols ?? positionsRef.current.map((p) => p.symbol)
-      if (syms.length === 0) return
-
-      setQuoteStatuses((prev) => {
-        const next = { ...prev }
-        syms.forEach((s) => {
-          next[s] = "loading"
-        })
-        return next
-      })
-
-      try {
-        const fetched = await fetchQuotes(syms)
-        setQuotes((prev) => ({ ...prev, ...fetched }))
-        setQuoteStatuses((prev) => {
-          const next = { ...prev }
-          syms.forEach((s) => {
-            next[s] = fetched[s] ? "ok" : "error"
-          })
-          return next
-        })
-
-        setCurrentPrices((prev) => {
-          const next = { ...prev }
-          Object.entries(fetched).forEach(([sym, q]) => {
-            if (q && q.price) {
-              next[sym] = { price: q.price, currency: q.currency }
-            }
-          })
-          return next
-        })
-      } catch {
-        setQuoteStatuses((prev) => {
-          const next = { ...prev }
-          syms.forEach((s) => {
-            next[s] = "error"
-          })
-          return next
-        })
-      }
-    },
-    []
-  )
-
-  const symbolsKey = positions.map((p) => p.symbol.toUpperCase()).sort().join(",")
-
+  // Register portfolio symbols to unified quotes provider (batched with watchlist)
   useEffect(() => {
-    if (!symbolsKey) return
-    const syms = symbolsKey.split(",").filter(Boolean)
-    fetchAllQuotes(syms)
-  }, [symbolsKey, fetchAllQuotes])
+    registerSymbols("portfolio", positions.map((p) => p.symbol))
+  }, [positions, registerSymbols])
 
-  useVisibilityPolling(fetchAllQuotes, 60_000, Boolean(symbolsKey))
+  // Sync currentPrices from unified quotes store
+  useEffect(() => {
+    setCurrentPrices((prev) => {
+      let changed = false
+      const next = { ...prev }
+      Object.entries(quotes).forEach(([sym, q]) => {
+        if (q && q.price && (!prev[sym] || prev[sym].price !== q.price || prev[sym].currency !== q.currency)) {
+          next[sym] = { price: q.price, currency: q.currency }
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+  }, [quotes])
 
   useEffect(() => {
     const currenciesToFetch = new Set<string>()
@@ -730,7 +687,7 @@ export function StockPricesPanel({
                 position={pos}
                 quote={quotes[pos.symbol]}
                 status={quoteStatuses[pos.symbol]}
-                onRefresh={() => fetchAllQuotes([pos.symbol])}
+                onRefresh={() => refreshQuote(pos.symbol)}
                 onRemove={() => handleRemove(pos.symbol)}
                 onUpdate={(s, p, fx) => handleUpdate(pos.symbol, pos.label, s, p, fx)}
                 onPriceLoaded={handlePriceLoaded}
