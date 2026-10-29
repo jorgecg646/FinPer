@@ -60,8 +60,7 @@ function getWidget() {
 
 function clearLegacyUserCookie() {
   if (typeof document === "undefined") return
-  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : ""
-  document.cookie = `finflow_user_id=; path=/; max-age=0; SameSite=Lax${isSecure}`
+  document.cookie = "finflow_user_id=; path=/; max-age=0; SameSite=Lax; Secure"
 }
 
 function cleanNetlifyHash() {

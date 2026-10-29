@@ -263,6 +263,27 @@
           "text": "Al abrir Inversiones, la lista de seguimiento queda cerrada tanto en móvil como en escritorio, aunque antes se hubiera abierto; el botón de abrir/cerrar y el ajuste del contenido siguen sincronizados. npm test, npx tsc --noEmit y npm run build pasan. No se pudo ejecutar una comprobación visual en navegador; revisar una entrada a Inversiones en ambos tamaños de pantalla."
         }
       ]
+    },
+    {
+      "id": "CI-03",
+      "title": "Forzar Secure al borrar cookie heredada",
+      "state": "review",
+      "group": "CI",
+      "at": "2026-10-29T18:02:12Z",
+      "by": "agent",
+      "desc": "Eliminar la cookie heredada finflow_user_id con el atributo Secure siempre presente para que CodeQL no detecte una cookie sin protección de transporte. Confirmar que el comportamiento de borrado y el inicio de sesión siguen correctos en HTTPS; revisar el caso de desarrollo local HTTP, sin afectar a la cookie de sesión firmada HttpOnly.",
+      "notes": [
+        {
+          "at": "2026-10-29T18:03:37Z",
+          "by": "agent",
+          "text": "Plan: añadir Secure siempre a la cookie expirada; mantener atributos de borrado y verificar build/typecheck. En HTTP local puede no borrarse, pero el camino de producción HTTPS queda protegido."
+        },
+        {
+          "at": "2026-10-29T18:04:39Z",
+          "by": "agent",
+          "text": "El borrado de la cookie heredada finflow_user_id ahora siempre incluye Secure y conserva path, max-age=0 y SameSite=Lax. TypeScript y build de producción pasan. En desarrollo HTTP el navegador puede no permitir borrar una cookie Secure; la cookie de sesión firmada no se modifica."
+        }
+      ]
     }
   ]
 }
