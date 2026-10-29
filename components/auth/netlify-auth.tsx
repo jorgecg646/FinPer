@@ -132,11 +132,25 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
         cleanupWidgetIframe()
 
         try {
-          const accessToken = netUser.token?.access_token || (await netUser.jwt?.())
+          let accessToken: string | undefined = undefined
+          if (typeof netUser.jwt === "function") {
+            try {
+              const freshToken = await netUser.jwt()
+              if (freshToken) accessToken = freshToken
+            } catch (jwtErr) {
+              console.warn("Could not refresh Netlify Identity JWT:", jwtErr)
+            }
+          }
+          if (!accessToken) {
+            accessToken = netUser.token?.access_token || undefined
+          }
           await syncServerSession(accessToken)
           updateUserState(parsed)
         } catch (error) {
           console.error("Could not establish a secure user session:", error)
+          try {
+            await fetch("/api/auth/session", { method: "DELETE" })
+          } catch {}
           updateUserState(null)
           return
         }
@@ -167,8 +181,11 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
         cleanupWidgetIframe()
       })
 
-      widget.on("logout", () => {
+      widget.on("logout", async () => {
         cleanupWidgetIframe()
+        try {
+          await fetch("/api/auth/session", { method: "DELETE" })
+        } catch {}
         updateUserState(null)
       })
 
@@ -214,6 +231,29 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
       initWidget()
     } else {
       setIsLoading(false)
+    }
+
+    // 3. Proactively refresh token in background on tab focus
+    const handleFocus = () => {
+      const widget = getWidget()
+      if (!widget) return
+      const currentUser = widget.currentUser()
+      if (currentUser && typeof currentUser.jwt === "function") {
+        currentUser.jwt().then((freshToken: string) => {
+          if (freshToken) syncServerSession(freshToken).catch(() => {})
+        }).catch(() => {})
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") handleFocus()
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+      document.removeEventListener("visibilitychange", handleVisibility)
     }
   }, [])
 

@@ -491,12 +491,38 @@ export function TickerCard({
 // ─── Stock TradingView Interactive Chart Modal ────────────────────────────────
 
 export function StockTradingViewModal({
-  symbol, name, price, changePercent, currency, onClose,
+  symbol, name, price, changePercent, currency, rightOffset = 0, onClose,
 }: {
-  symbol: string; name: string; price?: number; changePercent?: number; currency?: string; onClose: () => void
+  symbol: string; name: string; price?: number; changePercent?: number; currency?: string; rightOffset?: number; onClose: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isUp = (changePercent ?? 0) >= 0
+  const [isDesktop, setIsDesktop] = useState(false)
+  const besideWatchlist = isDesktop && rightOffset > 0
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1280px)")
+    const updateDesktop = (event: MediaQueryList | MediaQueryListEvent) => setIsDesktop(event.matches)
+    updateDesktop(mediaQuery)
+    mediaQuery.addEventListener("change", updateDesktop)
+    return () => mediaQuery.removeEventListener("change", updateDesktop)
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === "undefined") return
+
+    let resizeFrame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))
+    })
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(resizeFrame)
+    }
+  }, [symbol])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -535,21 +561,30 @@ export function StockTradingViewModal({
   }, [symbol])
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
-      <div className="w-full max-w-5xl bg-[#09111e] border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[85vh] max-h-[720px] text-white relative" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 bg-[#050b14] border-b border-white/15 shrink-0">
-          <div>
+    <div
+      className={`fixed inset-y-0 left-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center p-3 sm:p-4 animate-in fade-in duration-200 ${
+        besideWatchlist ? "justify-end pr-0" : "justify-center"
+      }`}
+      style={{ right: isDesktop ? rightOffset : 0 }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl min-h-0 h-[min(85dvh,720px)] bg-[#09111e] border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col text-white relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3.5 bg-[#050b14] border-b border-white/15 shrink-0">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-black uppercase tracking-wider text-white">{name}</h3>
-              <span className="text-xs font-mono font-bold text-slate-400">{symbol}</span>
+              <h3 className="text-base font-black uppercase tracking-wider text-white truncate">{name}</h3>
+              <span className="text-xs font-mono font-bold text-slate-400 shrink-0">{symbol}</span>
             </div>
             <a href={`https://es.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 hover:underline">
               <span>Abrir directo en TradingView</span><ExternalLink className="h-3 w-3" />
             </a>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {price !== undefined && (
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <div className="text-base font-black text-white tabular-nums">
                   {price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {currency}
                 </div>
@@ -565,7 +600,7 @@ export function StockTradingViewModal({
             </button>
           </div>
         </div>
-        <div ref={containerRef} className="flex-1 w-full h-full bg-[#09111e] relative min-h-[400px]" />
+        <div ref={containerRef} className="flex-1 w-full h-full bg-[#09111e] relative min-h-0" />
       </div>
     </div>
   )

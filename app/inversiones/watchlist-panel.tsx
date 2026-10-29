@@ -17,7 +17,7 @@ import {
   Loader2,
   Check,
 } from "lucide-react"
-import type { StockQuote } from "./stock-widgets"
+import { StockTradingViewModal, type StockQuote } from "./stock-widgets"
 import { getTradingViewLogoUrl } from "@/lib/format"
 import { useStockQuotes } from "./stock-quotes-context"
 
@@ -27,6 +27,10 @@ import { PANEL_W, TOGGLE_EVENT, WatchlistContentOffset } from "./watchlist-conte
 export { WatchlistContentOffset }
 
 const STORAGE_KEY = "finper_watchlist_v3"
+const WATCHLIST_CHART_SYMBOLS: Record<string, string> = {
+  "TVC:SPX": "FOREXCOM:SPXUSD",
+  "NASDAQ:NDX": "FOREXCOM:NSXUSD",
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -589,6 +593,7 @@ function WatchlistRow({
   item,
   quote,
   onRemove,
+  onSelectChart,
   dragging,
   dragOverTop,
   dragOverBottom,
@@ -600,10 +605,11 @@ function WatchlistRow({
   item: WatchItem
   quote?: StockQuote
   onRemove: () => void
+  onSelectChart: () => void
   dragging: boolean
   dragOverTop?: boolean
   dragOverBottom?: boolean
-  onDragStart: () => void
+  onDragStart: (e: React.DragEvent<HTMLButtonElement>) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: () => void
   onDragEnd: () => void
@@ -613,49 +619,61 @@ function WatchlistRow({
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all group/row cursor-grab active:cursor-grabbing ${
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all group/row ${
         dragging ? "opacity-40" : ""
       } ${dragOverTop ? "border-t-2 border-primary" : "border-t-2 border-transparent"} ${
         dragOverBottom ? "border-b-2 border-primary" : "border-b-2 border-transparent"
       } hover:bg-secondary/50 dark:hover:bg-white/[0.05]`}
     >
       {/* Drag handle */}
-      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/row:text-muted-foreground/70 shrink-0 transition-colors" />
+      <button
+        type="button"
+        draggable
+        onDragStart={onDragStart}
+        aria-label={`Reordenar ${item.label}`}
+        title="Arrastrar para reordenar"
+        className="flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/row:text-muted-foreground/70 transition-colors" />
+      </button>
 
-      {/* Logo */}
-      <SymbolLogo logoid={quote?.logoid || item.logoid} symbol={item.symbol} size={22} />
+      <button
+        type="button"
+        onClick={onSelectChart}
+        aria-label={`Ver gráfica de ${item.label}`}
+        title={`Ver gráfica de ${item.label}`}
+        className="flex flex-1 min-w-0 items-center gap-2 text-left cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+      >
+        <SymbolLogo logoid={quote?.logoid || item.logoid} symbol={item.symbol} size={22} />
 
-      {/* Label and Subtitle */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center" title={`${item.symbol} — ${subName || item.label}`}>
-        <span className="text-xs font-bold text-foreground truncate leading-tight">{item.label}</span>
-        {subName && (
-          <span className="text-[11px] text-muted-foreground/80 truncate leading-tight mt-0.5">
-            {subName}
-          </span>
-        )}
-      </div>
-
-      {/* Price + % — always visible */}
-      <div className="flex flex-col items-end shrink-0 tabular-nums" suppressHydrationWarning>
-        {quote ? (
-          <>
-            <span className="text-xs font-semibold text-foreground leading-tight" suppressHydrationWarning>{fmtPrice(quote.price)}</span>
-            <span className={`text-[11px] font-bold leading-tight ${isUp ? "text-emerald-500" : "text-rose-500"}`} suppressHydrationWarning>
-              {fmtPct(quote.changePercent)}
+        <div className="flex-1 min-w-0 flex flex-col justify-center" title={`${item.symbol} — ${subName || item.label}`}>
+          <span className="text-xs font-bold text-foreground truncate leading-tight">{item.label}</span>
+          {subName && (
+            <span className="text-[11px] text-muted-foreground/80 truncate leading-tight mt-0.5">
+              {subName}
             </span>
-          </>
-        ) : (
-          <>
-            <span className="h-3 w-12 bg-secondary/60 rounded animate-pulse mb-1" />
-            <span className="h-2.5 w-8 bg-secondary/40 rounded animate-pulse" />
-          </>
-        )}
-      </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-end shrink-0 tabular-nums" suppressHydrationWarning>
+          {quote ? (
+            <>
+              <span className="text-xs font-semibold text-foreground leading-tight" suppressHydrationWarning>{fmtPrice(quote.price)}</span>
+              <span className={`text-[11px] font-bold leading-tight ${isUp ? "text-emerald-500" : "text-rose-500"}`} suppressHydrationWarning>
+                {fmtPct(quote.changePercent)}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="h-3 w-12 bg-secondary/60 rounded animate-pulse mb-1" />
+              <span className="h-2.5 w-8 bg-secondary/40 rounded animate-pulse" />
+            </>
+          )}
+        </div>
+      </button>
 
       {/* Remove button */}
       <button
@@ -782,6 +800,7 @@ export function WatchlistPanel() {
   const [panelCollapsed, setPanelCollapsed] = useState(true)
   const { quotes, registerSymbols, unregisterSymbols } = useStockQuotes()
   const [addModal, setAddModal] = useState<{ groupId: string } | null>(null)
+  const [selectedChart, setSelectedChart] = useState<WatchItem | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [dragOverTarget, setDragOverTarget] = useState<DragOverTarget | null>(null)
 
@@ -797,14 +816,14 @@ export function WatchlistPanel() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(groups)) } catch {}
   }, [groups])
 
+  useEffect(() => {
+    const isOpen = !panelCollapsed
+    document.documentElement.dataset.watchlistOpen = String(isOpen)
+    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: isOpen }))
+  }, [panelCollapsed])
+
   function togglePanel() {
-    setPanelCollapsed((prev) => {
-      const next = !prev
-      queueMicrotask(() => {
-        window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: next }))
-      })
-      return next
-    })
+    setPanelCollapsed((prev) => !prev)
   }
 
   // Close panel on Escape if open and modal is closed
@@ -875,7 +894,9 @@ export function WatchlistPanel() {
     setDrag({ type: "group", groupId })
   }
 
-  function handleItemDragStart(groupId: string, itemIndex: number) {
+  function handleItemDragStart(e: React.DragEvent<HTMLButtonElement>, groupId: string, itemIndex: number, symbol: string) {
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/plain", symbol)
     setDrag({ type: "item", groupId, itemIndex })
   }
 
@@ -1067,6 +1088,7 @@ export function WatchlistPanel() {
                           item={item}
                           quote={quotes[item.symbol]}
                           onRemove={() => removeItem(group.id, item.symbol)}
+                          onSelectChart={() => setSelectedChart(item)}
                           dragging={drag?.type === "item" && drag.groupId === group.id && drag.itemIndex === idx}
                           dragOverTop={
                             dragOverTarget?.type === "item" &&
@@ -1080,7 +1102,7 @@ export function WatchlistPanel() {
                             dragOverTarget.itemIndex === idx &&
                             dragOverTarget.half === "bottom"
                           }
-                          onDragStart={() => handleItemDragStart(group.id, idx)}
+                          onDragStart={(e) => handleItemDragStart(e, group.id, idx, item.symbol)}
                           onDragOver={(e) => handleItemDragOver(e, group.id, idx)}
                           onDrop={handleDrop}
                           onDragEnd={handleDragEnd}
@@ -1117,6 +1139,17 @@ export function WatchlistPanel() {
           groups={groups}
           onAdd={addItem}
           onClose={() => setAddModal(null)}
+        />
+      )}
+      {selectedChart && (
+        <StockTradingViewModal
+          symbol={WATCHLIST_CHART_SYMBOLS[selectedChart.symbol.toUpperCase()] ?? selectedChart.symbol}
+          name={selectedChart.name || quotes[selectedChart.symbol]?.name || selectedChart.label}
+          price={quotes[selectedChart.symbol]?.price}
+          changePercent={quotes[selectedChart.symbol]?.changePercent}
+          currency={quotes[selectedChart.symbol]?.currency}
+          rightOffset={panelCollapsed ? 0 : PANEL_W}
+          onClose={() => setSelectedChart(null)}
         />
       )}
     </>

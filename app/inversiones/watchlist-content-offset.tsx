@@ -6,8 +6,7 @@ export const TOGGLE_EVENT = "finper-watchlist-toggle"
 export const PANEL_W = 272
 
 export function WatchlistContentOffset({ children }: { children: ReactNode }) {
-  // Start as collapsed=true to avoid layout shift on first render and ensure minimized by default
-  const [collapsed, setCollapsed] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -18,9 +17,7 @@ export function WatchlistContentOffset({ children }: { children: ReactNode }) {
 
     const toggleHandler = (e: Event) => {
       const next = (e as CustomEvent<boolean>).detail
-      queueMicrotask(() => {
-        setCollapsed(next)
-      })
+      setIsOpen(next)
     }
     window.addEventListener(TOGGLE_EVENT, toggleHandler)
 
@@ -33,7 +30,7 @@ export function WatchlistContentOffset({ children }: { children: ReactNode }) {
   return (
     <div
       className="transition-[padding-right] duration-300 ease-in-out"
-      style={{ paddingRight: !collapsed && isDesktop ? PANEL_W + 8 : 0 }}
+      style={{ paddingRight: isOpen && isDesktop ? PANEL_W + 8 : 0 }}
     >
       {children}
     </div>

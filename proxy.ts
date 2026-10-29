@@ -5,6 +5,7 @@ import {
   GUEST_SESSION_MAX_AGE,
   SESSION_COOKIE_NAME,
   isGuestSessionId,
+  isJwtExpired,
 } from "@/lib/auth-session"
 
 export function proxy(request: NextRequest) {
@@ -15,6 +16,14 @@ export function proxy(request: NextRequest) {
     request.cookies.set(GUEST_SESSION_COOKIE_NAME, newGuestSessionId)
   }
 
+  // If the Netlify Identity token cookie is present but expired or malformed,
+  // remove it from request and clear it on response so downstream RSC rendering does not fail.
+  const identityToken = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  const shouldClearIdentityToken = identityToken !== undefined && isJwtExpired(identityToken)
+  if (shouldClearIdentityToken) {
+    request.cookies.delete(SESSION_COOKIE_NAME)
+  }
+
   const response = NextResponse.next({ request: { headers: request.headers } })
   if (newGuestSessionId) {
     response.cookies.set(GUEST_SESSION_COOKIE_NAME, newGuestSessionId, {
@@ -23,6 +32,16 @@ export function proxy(request: NextRequest) {
       sameSite: "lax",
       path: "/",
       maxAge: GUEST_SESSION_MAX_AGE,
+    })
+  }
+
+  if (shouldClearIdentityToken) {
+    response.cookies.set(SESSION_COOKIE_NAME, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
     })
   }
 

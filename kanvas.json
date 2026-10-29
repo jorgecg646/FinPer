@@ -307,28 +307,54 @@
       ]
     },
     {
-      "id": "CI-05",
-      "title": "Tracing React server-render error #441",
-      "state": "review",
+      "id": "CI-06",
+      "title": "Resilient session handling for expired tokens",
+      "state": "done",
       "group": "CI",
-      "at": "2026-10-29T20:39:49Z",
-      "by": "copilot",
-      "desc": "Identify the server-side exception behind React error #441 on the deployed dashboard, fix the root cause, and verify the production build and live page render without an RSC error. Done when the failure is reproducible or traced to server logs, the fix is verified, and the Turnstile preload warning is confirmed as separate or resolved.",
+      "at": "2026-10-29T21:02:46Z",
+      "by": "agent",
+      "desc": "Capturar tokens expirados o invalidos en getActiveUserId con fallback a sesion de invitado y limpiar JWTs caducados en proxy.ts para evitar que el render del servidor falle con el error #441.",
       "notes": [
         {
-          "at": "2026-10-29T20:42:01Z",
-          "by": "copilot",
-          "text": "Plan: Reproduce the reported React #441, identify the server-side render failure from the deployed site and recent change context, then fix the root cause and validate."
+          "at": "2026-10-29T21:04:26Z",
+          "by": "agent",
+          "text": "Incluir renovacion transparente con refresh_token en el cliente para que el usuario no tenga que volver a iniciar sesion cada hora."
         },
         {
-          "at": "2026-10-29T20:44:07Z",
-          "by": "copilot",
-          "text": "Live check: homepage returns HTTP 200; current browser session does not reproduce #441. It does reproduce React #418 when a saved finflow-profile is present: the server renders default profile data while the client reads localStorage during initial render. Also observed unrelated 404 for Vercel Insights script on Netlify. Updated profile consumers to render a shared deterministic default, then load localStorage in effects."
+          "at": "2026-10-29T21:06:10Z",
+          "by": "agent",
+          "text": "Plan: Implement graceful fallback in getActiveUserId, JWT expiry cleanup in proxy.ts, and automatic background refresh with refresh_token in netlify-auth.tsx"
         },
         {
-          "at": "2026-10-29T20:46:50Z",
+          "at": "2026-10-29T21:11:33Z",
+          "by": "agent",
+          "text": "Fallback seguro ante tokens expirados en getActiveUserId(), limpieza automatica de JWT caducados en proxy.ts y renovacion silenciosa con refresh_token en netlify-auth.tsx. Verificado con build de produccion y 19 pruebas pasando."
+        }
+      ]
+    },
+    {
+      "id": "IN-05",
+      "title": "Mostrar gráficas desde seguimiento y ordenar acciones",
+      "state": "done",
+      "group": "IN",
+      "at": "2026-10-29T21:14:33Z",
+      "by": "copilot",
+      "desc": "Al pulsar una acción de la lista de seguimiento, abrir la gráfica interactiva con el mismo estilo y comportamiento que las demás gráficas de Inversiones. Permitir reordenar las acciones arrastrándolas únicamente desde el asa de seis puntos situada junto a cada acción; el resto de la fila y la gráfica no deben iniciar el arrastre.",
+      "notes": [
+        {
+          "at": "2026-10-29T21:15:41Z",
           "by": "copilot",
-          "text": "La causa reproducible del fallo en Chrome era una diferencia de hidratación: el HTML inicial usaba el perfil predeterminado y el primer render del navegador leía nombre y avatar de localStorage. Todos los componentes ahora muestran el mismo perfil predeterminado al inicio y cargan el perfil guardado tras hidratar. Verificado: build de producción correcto, 17 pruebas pasan, y prueba Chromium con perfil guardado sin React #418. El sitio publicado no reproduce #441 en esta sesión; si persiste tras desplegar, comparte el request fallido o el log de Netlify para rastrearlo por separado. Revisa en Chrome que tu perfil aparezca correctamente."
+          "text": "Actualizado según tu indicación: el reordenamiento empieza solo desde los seis puntos junto a la acción."
+        },
+        {
+          "at": "2026-10-29T21:17:02Z",
+          "by": "copilot",
+          "text": "Implementación: abrir la gráfica TradingView al pulsar una acción y limitar el reordenamiento al asa de seis puntos, sin alterar los controles o el resto de la fila."
+        },
+        {
+          "at": "2026-10-29T21:19:28Z",
+          "by": "copilot",
+          "text": "Ahora puedes abrir la gráfica TradingView pulsando la acción en seguimiento; solo los seis puntos permiten reordenarla y la ventana queda por encima del panel. Verificado con TypeScript y los 19 tests. Comprueba en Inversiones que una acción abre su gráfica y que arrastrar desde el asa cambia su orden."
         }
       ]
     }

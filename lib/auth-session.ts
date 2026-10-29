@@ -15,7 +15,30 @@ export function isGuestSessionId(value: string | undefined): value is string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+export function isJwtExpired(token: string | undefined): boolean {
+  if (!token) return true
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return false
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const json = typeof Buffer !== "undefined"
+      ? Buffer.from(base64, "base64").toString("utf-8")
+      : atob(base64)
+    const payload = JSON.parse(json)
+    if (typeof payload.exp === "number") {
+      return (Date.now() / 1000) >= (payload.exp - 10)
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 export async function verifyNetlifyIdentityToken(accessToken: string): Promise<NetlifyIdentityUser> {
+  if (isJwtExpired(accessToken)) {
+    throw new Error("Invalid Netlify Identity token: token is expired")
+  }
+
   const identityRes = await fetch(`${NETLIFY_IDENTITY_URL}/user`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(5000),

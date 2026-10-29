@@ -38,15 +38,20 @@ export async function getActiveUserId(): Promise<string> {
   const cookieStore = await cookies()
   const accessToken = cookieStore.get(SESSION_COOKIE_NAME)?.value
   if (accessToken) {
-    const identityUser = await getNetlifyIdentityUser(accessToken)
-    return `netlify:${identityUser.id}`
+    try {
+      const identityUser = await getNetlifyIdentityUser(accessToken)
+      return `netlify:${identityUser.id}`
+    } catch (error) {
+      console.warn("[auth] Invalid or expired identity token, falling back to guest session:", error)
+    }
   }
 
   const guestSessionId = cookieStore.get(GUEST_SESSION_COOKIE_NAME)?.value
-  if (!isGuestSessionId(guestSessionId)) {
-    throw new Error("No hay una sesión de invitado válida. Recarga la página para crear una nueva.")
+  if (isGuestSessionId(guestSessionId)) {
+    return `guest:${guestSessionId}`
   }
-  return `guest:${guestSessionId}`
+
+  return "guest:default"
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

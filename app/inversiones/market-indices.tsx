@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { RefreshCw, LayoutGrid, Rows, TrendingUp, TrendingDown, AlertTriangle, X, ExternalLink } from "lucide-react"
 import { fmtNumber } from "@/lib/format"
 import { useVisibilityPolling } from "@/lib/hooks"
+import { PANEL_W, TOGGLE_EVENT } from "./watchlist-content-offset"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,8 +36,8 @@ const ALL_ITEMS: Pick<TickerItem, "symbol" | "short" | "flag" | "logo" | "pairLo
   { symbol: "TVC:SXXP", short: "STOXX 600", flag: "EU", chartSymbol: "STOXX:SXXP", category: "indices" },
   { symbol: "XETR:DAX", short: "DAX", flag: "DE", chartSymbol: "XETR:DAX", category: "indices" },
   { symbol: "SPREADEX:FTSE", short: "FTSE 100", flag: "GB", chartSymbol: "CURRENCYCOM:UK100", category: "indices" },
-  { symbol: "TVC:NI225", short: "NIKKEI", flag: "JP", chartSymbol: "CURRENCYCOM:JP225", category: "indices" },
-  { symbol: "TVC:KOSPI", short: "KOSPI", flag: "KR", chartSymbol: "KRX:KOSPI", category: "indices" },
+  { symbol: "TVC:NI225", short: "NIKKEI", flag: "JP", chartSymbol: "TVC:NI225", category: "indices" },
+  { symbol: "TVC:KOSPI", short: "KOSPI", flag: "KR", chartSymbol: "TVC:KOSPI", category: "indices" },
   { symbol: "TVC:SHCOMP", short: "SHANGHAI", flag: "CN", chartSymbol: "SSE:000001", category: "indices" },
   { symbol: "BME:IBC", short: "IBEX 35", flag: "ES", chartSymbol: "BME:IBC", category: "indices" },
   // Bonds
@@ -180,11 +181,44 @@ function buildTickerItems(items: TickerItem[], period: PeriodMode, prefix: strin
 
 function TradingViewModal({ item, period, onClose }: { item: TickerItem; period: PeriodMode; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [watchlistOpen, setWatchlistOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const chartSymbol = item.chartSymbol ?? item.symbol
   const isBond = item.category === "bonds"
   const pct = getPct(item, period)
   const isUp = period === "1D" ? item.change >= 0 : pct >= 0
   const colorClass = isUp ? "text-emerald-400 font-extrabold" : "text-rose-400 font-extrabold"
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1280px)")
+    const updateDesktop = (event: MediaQueryList | MediaQueryListEvent) => setIsDesktop(event.matches)
+    const toggleHandler = (event: Event) => setWatchlistOpen((event as CustomEvent<boolean>).detail)
+
+    updateDesktop(mediaQuery)
+    setWatchlistOpen(document.documentElement.dataset.watchlistOpen === "true")
+    window.addEventListener(TOGGLE_EVENT, toggleHandler)
+    mediaQuery.addEventListener("change", updateDesktop)
+    return () => {
+      window.removeEventListener(TOGGLE_EVENT, toggleHandler)
+      mediaQuery.removeEventListener("change", updateDesktop)
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === "undefined") return
+
+    let resizeFrame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))
+    })
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(resizeFrame)
+    }
+  }, [chartSymbol])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -223,15 +257,24 @@ function TradingViewModal({ item, period, onClose }: { item: TickerItem; period:
   }, [chartSymbol])
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
-      <div className="w-full max-w-5xl bg-[#09111e] border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[85vh] max-h-[720px] text-white relative" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 bg-[#050b14] border-b border-white/15 shrink-0">
-          <div className="flex items-center gap-3">
+    <div
+      className={`fixed inset-y-0 left-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center p-3 sm:p-4 animate-in fade-in duration-200 ${
+        isDesktop && watchlistOpen ? "justify-end pr-0" : "justify-center"
+      }`}
+      style={{ right: isDesktop && watchlistOpen ? PANEL_W : 0 }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl min-h-0 h-[min(85dvh,720px)] bg-[#09111e] border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col text-white relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3.5 bg-[#050b14] border-b border-white/15 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <AssetIcon flag={item.flag} logo={item.logo} pairLogos={item.pairLogos} />
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-black uppercase tracking-wider text-white">{item.short}</h3>
-                <span className="text-xs font-mono font-bold text-slate-400">{chartSymbol}</span>
+                <h3 className="text-base font-black uppercase tracking-wider text-white truncate">{item.short}</h3>
+                <span className="text-xs font-mono font-bold text-slate-400 shrink-0">{chartSymbol}</span>
               </div>
               <a href={`https://es.tradingview.com/chart/?symbol=${encodeURIComponent(chartSymbol)}`} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 hover:underline">
                 <span>Abrir directo en TradingView</span>
@@ -239,8 +282,8 @@ function TradingViewModal({ item, period, onClose }: { item: TickerItem; period:
               </a>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="text-right hidden sm:block">
               <div className="text-base font-black text-white tabular-nums">
                 {fmtVal(item.price, item.category)}
                 {isBond && <span className="text-xs text-slate-300">%</span>}
@@ -252,7 +295,7 @@ function TradingViewModal({ item, period, onClose }: { item: TickerItem; period:
             </button>
           </div>
         </div>
-        <div ref={containerRef} className="flex-1 w-full h-full bg-[#09111e] relative min-h-[400px]" />
+        <div ref={containerRef} className="flex-1 w-full h-full bg-[#09111e] relative min-h-0" />
       </div>
     </div>
   )
