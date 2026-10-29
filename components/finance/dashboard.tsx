@@ -3,7 +3,7 @@
 import { Eye, EyeOff, TrendingUp, TrendingDown, Bell, X, CheckCircle, AlertTriangle, ShieldCheck, Wallet, ChevronRight } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import type { Summary } from "@/app/actions"
-import { loadLocalProfile } from "@/lib/profile"
+import { DEFAULT_PROFILE, loadLocalProfile } from "@/lib/profile"
 import { useAuth } from "@/components/auth/netlify-auth"
 import { UserAvatar } from "@/components/finance/navigation"
 import { fmtCurrency, fmtSignedCurrency, CURRENCY_SYMBOLS, getFallbackFxRate } from "@/lib/format"
@@ -33,7 +33,7 @@ function getGreeting(): string {
 
 export function Topbar() {
   const { user: authUser } = useAuth()
-  const [localProfile, setLocalProfile] = useState(loadLocalProfile)
+  const [localProfile, setLocalProfile] = useState(DEFAULT_PROFILE)
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(true)
   const [greeting, setGreeting] = useState("Buenos días")

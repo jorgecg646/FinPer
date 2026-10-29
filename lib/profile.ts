@@ -7,7 +7,7 @@ export const PROFILE_STORAGE_KEY = "finflow-profile"
 
 export type LocalProfile = { name: string; plan: string; avatar: string }
 
-const DEFAULT_PROFILE: LocalProfile = { name: "Usuario", plan: "Plan Personal", avatar: "" }
+export const DEFAULT_PROFILE: LocalProfile = { name: "Usuario", plan: "Plan Personal", avatar: "" }
 
 export function loadLocalProfile(): LocalProfile {
   if (typeof window === "undefined") return DEFAULT_PROFILE

@@ -12,7 +12,7 @@ import { LogOut } from "lucide-react"
 // Local profile (name, plan, avatar stored in localStorage)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { loadLocalProfile, PROFILE_STORAGE_KEY } from "@/lib/profile"
+import { DEFAULT_PROFILE, loadLocalProfile, PROFILE_STORAGE_KEY } from "@/lib/profile"
 import { fmtCurrency } from "@/lib/format"
 const PLAN_OPTIONS = ["Gratuito", "Básico", "Premium", "Empresarial"]
 
@@ -45,7 +45,7 @@ import { PrivacyModal } from "@/components/auth/privacy-modal"
 
 export function ProfileForm({ stats }: { stats: ProfileStats }) {
   const { user: authUser, login, logout } = useAuth()
-  const [profile, setProfile] = useState(loadLocalProfile)
+  const [profile, setProfile] = useState(DEFAULT_PROFILE)
   const [saved, setSaved] = useState(false)
   const [privacyOpen, setPrivacyOpen] = useState(false)
 

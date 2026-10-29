@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Home, ArrowUpCircle, ArrowDownCircle, User, X, Menu, LogOut, Target, Calculator, Sun, Moon, TrendingUp } from "lucide-react"
-import { loadLocalProfile } from "@/lib/profile"
+import { DEFAULT_PROFILE, loadLocalProfile } from "@/lib/profile"
 import { NetlifyAuthProvider, useAuth, GoogleIcon } from "@/components/auth/netlify-auth"
 import { fmtCurrency } from "@/lib/format"
 import { useCurrency } from "@/components/finance/use-currency"
@@ -130,7 +130,7 @@ export function Sidebar({
   const currentYear = useActiveYear()
   const { user, login, logout } = useAuth()
   const [privacyOpen, setPrivacyOpen] = useState(false)
-  const [localProfile, setLocalProfile] = useState(loadLocalProfile)
+  const [localProfile, setLocalProfile] = useState(DEFAULT_PROFILE)
 
   useEffect(() => {
     function update() {
@@ -239,7 +239,17 @@ export function Sidebar({
 
 export function MobileHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
   const { user, login } = useAuth()
-  const localProfile = loadLocalProfile()
+  const [localProfile, setLocalProfile] = useState(DEFAULT_PROFILE)
+
+  useEffect(() => {
+    function update() {
+      setLocalProfile(loadLocalProfile())
+    }
+    update()
+    window.addEventListener("profile-updated", update)
+    return () => window.removeEventListener("profile-updated", update)
+  }, [])
+
   const displayAvatar = user?.avatar || localProfile.avatar
   const displayName = user?.name || localProfile.name
 
