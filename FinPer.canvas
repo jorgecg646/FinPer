@@ -1,0 +1,152 @@
+{
+	"nodes": [
+		{
+			"id": "group-invers",
+			"type": "group",
+			"x": 20,
+			"y": 40,
+			"width": 540,
+			"height": 670,
+			"label": "Inversiones"
+		},
+		{
+			"id": "canvas-errors",
+			"type": "text",
+			"text": "## Errors\n✓ None",
+			"x": -540,
+			"y": -750,
+			"width": 380,
+			"height": 200,
+			"color": "1"
+		},
+		{
+			"id": "legend",
+			"type": "text",
+			"text": "## Legend\n🔴 **Red** = To Do (ready)\n⬜ **Gray** = Blocked\n🟠 **Orange** = Doing\n🔵 **Cyan** = Ready to review\n🟢 **Green** = Done\n🟣 **Purple** = Proposed by agent",
+			"x": -540,
+			"y": -310,
+			"width": 380,
+			"height": 230,
+			"color": "0"
+		},
+		{
+			"id": "canvas-warnings",
+			"type": "text",
+			"text": "## Warnings\n✓ None",
+			"x": -540,
+			"y": -530,
+			"width": 380,
+			"height": 200,
+			"color": "3"
+		},
+		{
+			"id": "cff6ad5b",
+			"type": "text",
+			"text": "## IN-01 Optimizar actualizacion y polling de cotizaciones\nImplementando StockQuotesProvider unificado en app/inversiones para solicitar todas las cotizaciones de cartera y watchlist en una sola peticion batch combinada. Sincronizando polling activo a 20s y anadiendo cache local para carga instantanea a 0ms.",
+			"x": 80,
+			"y": 80,
+			"width": 420,
+			"height": 180,
+			"color": "4"
+		},
+		{
+			"id": "0ef99ae6",
+			"type": "text",
+			"text": "## IN-02 Corregir resolucion de icono para USOIL\nArreglar getTradingViewLogoUrl para evitar duplicar el sufijo --big que causaba 403 en crude-oil--big.svg y priorizar logoid de la cotizacion en vivo.",
+			"x": 80,
+			"y": 330,
+			"width": 420,
+			"height": 180,
+			"color": "4"
+		},
+		{
+			"id": "b3427c21",
+			"type": "text",
+			"text": "## IN-03 Crear endpoint GET /api/watch-list\nImplementar endpoint GET /api/watch-list que consulte los simbolos de seguimiento por defecto desde el servidor, similar a market-indices.",
+			"x": 40,
+			"y": 530,
+			"width": 280,
+			"height": 160,
+			"color": "4"
+		},
+		{
+			"id": "group-critic",
+			"type": "group",
+			"x": 620,
+			"y": 40,
+			"width": 380,
+			"height": 700,
+			"label": "Critical Improvements"
+		},
+		{
+			"id": "654e1695",
+			"type": "text",
+			"text": "## CI-01 CRITICAL: Type Safety - Add Zod validation schemas for all API inputs\nCreate shared types file (types.ts) and add Zod validation for TxInput, Summary, and all API route inputs. Currently types are scattered in app/actions/index.ts without runtime validation. This is a security and reliability issue.",
+			"x": 640,
+			"y": 80,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		},
+		{
+			"id": "6bed0ac2",
+			"type": "text",
+			"text": "## CI-02 CRITICAL: Security - Remove console.log from Turnstile widget\nTurnstile component in components/security/turnstile.tsx has console.log statements that could expose tokens in production. Remove all debug logging and add proper error handling.",
+			"x": 640,
+			"y": 260,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		},
+		{
+			"id": "5225db9f",
+			"type": "text",
+			"text": "## CI-03 CRITICAL: Security - Tighten CSP headers in next.config.mjs\nCurrent CSP allows 'unsafe-inline' and 'unsafe-eval' which weakens security. Review and tighten Content-Security-Policy headers, especially for script-src and style-src.",
+			"x": 640,
+			"y": 440,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		},
+		{
+			"id": "group-highpr",
+			"type": "group",
+			"x": 1060,
+			"y": 40,
+			"width": 380,
+			"height": 700,
+			"label": "High Priority"
+		},
+		{
+			"id": "36771b64",
+			"type": "text",
+			"text": "## HP-01 HIGH: Performance - Split charts.tsx into smaller components\ncharts.tsx is 62.5KB with multiple chart components. Split into: donut-chart.tsx, line-chart.tsx, bar-chart.tsx, sankey-chart.tsx. Add React.memo to presentational components.",
+			"x": 1080,
+			"y": 80,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		},
+		{
+			"id": "83daf216",
+			"type": "text",
+			"text": "## HP-02 HIGH: Code Organization - Extract types to shared types.ts file\nTypes (Tx, TxInput, Summary, StockPosition, ProfileStats) are defined in app/actions/index.ts. Move to lib/types.ts or types/index.ts for better organization and reusability across client/server boundaries.",
+			"x": 1080,
+			"y": 260,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		},
+		{
+			"id": "4d95fabd",
+			"type": "text",
+			"text": "## HP-03 HIGH: Accessibility - Add proper ARIA labels and focus management\nVerify all form controls have proper labels, add focus management to AnnualWrappedModal, ensure color contrast meets WCAG AA, add aria-labels to Turnstile widget container.",
+			"x": 1080,
+			"y": 440,
+			"width": 280,
+			"height": 160,
+			"color": "6"
+		}
+	],
+	"edges": []
+}

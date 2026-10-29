@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { resolveTradingViewLogoId } from "@/lib/tradingview-symbol"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,30 +22,9 @@ export interface StockPriceResult {
   logoid: string
 }
 
-// In-memory cache for live stock quotes (30s TTL)
+// In-memory cache for live stock quotes (2s TTL matching market-indices)
 const priceCache = new Map<string, { timestamp: number; data: StockPriceResult }>()
-const CACHE_TTL_MS = 30_000
-
-function resolveTradingViewLogoId(
-  symbol: string,
-  logoid?: string | null,
-  baseCurrencyLogoid?: string | null
-): string {
-  if (typeof logoid === "string" && logoid.trim()) return logoid.trim()
-  if (typeof baseCurrencyLogoid === "string" && baseCurrencyLogoid.trim()) return baseCurrencyLogoid.trim()
-
-  const sym = symbol.toUpperCase()
-  if (/USOIL|UKOIL|BRENT|WTI|CRUDE|CL1!|BB1!|BZ1!|WTICOUSD|BCOUSD/.test(sym)) {
-    return "crude-oil"
-  }
-  // Crypto fallback mappings for TradingView SVG logos
-  const cryptoMatch = sym.match(/(?:BINANCE:|CRYPTO:|COINBASE:|BITSTAMP:|OKX:|BYBIT:|KRAKEN:)?([A-Z0-9]+)(?:USDT|USD|EUR|BTC|ETH)?$/)
-  const base = cryptoMatch ? cryptoMatch[1] : ""
-  if (base && ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK", "NEAR", "SUI", "PEPE", "SHIB", "TRX", "LTC", "BCH", "UNI", "MATIC", "POL", "APT", "RENDER", "ICP", "FET", "FIL", "ATOM", "XLM", "MONERO", "XMR", "KAS", "TON"].includes(base)) {
-    return `crypto/XTVC${base}`
-  }
-  return ""
-}
+const CACHE_TTL_MS = 2_000
 
 // Helper to fetch fallback via isolated quote session
 async function fetchFallbackQuote(symbol: string): Promise<StockPriceResult> {
@@ -116,30 +96,15 @@ async function fetchFallbackQuote(symbol: string): Promise<StockPriceResult> {
   })
 }
 
-export async function GET(req: NextRequest) {
-  const symbolsParam = req.nextUrl.searchParams.get("symbols")?.trim()
-  const singleSymbolParam = req.nextUrl.searchParams.get("symbol")?.trim()
-
-  if (!symbolsParam && !singleSymbolParam) {
-    return NextResponse.json({ error: "symbol or symbols is required" }, { status: 400 })
-  }
-
-  const isBatch = Boolean(symbolsParam)
-  const symbols = isBatch
-    ? symbolsParam!.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
-    : [singleSymbolParam!.toUpperCase()]
-
-  if (symbols.length === 0) {
-    return NextResponse.json(isBatch ? {} : { error: "No valid symbol provided" }, {
-      status: isBatch ? 200 : 400,
-    })
-  }
+export async function fetchStockQuotesServer(symbols: string[]): Promise<Record<string, StockPriceResult>> {
+  const cleanSymbols = Array.from(new Set(symbols.map((s) => s.trim().toUpperCase()))).filter(Boolean)
+  if (cleanSymbols.length === 0) return {}
 
   const now = Date.now()
   const results: Record<string, StockPriceResult> = {}
   const symbolsToFetch: string[] = []
 
-  for (const sym of symbols) {
+  for (const sym of cleanSymbols) {
     const cached = priceCache.get(sym)
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       results[sym] = cached.data
@@ -150,9 +115,7 @@ export async function GET(req: NextRequest) {
 
   // If everything was in cache, return immediately
   if (symbolsToFetch.length === 0) {
-    return NextResponse.json(isBatch ? results : results[symbols[0]], {
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
-    })
+    return results
   }
 
   // 1. Primary method: TradingView Global Scanner HTTP API (supports multiple tickers at once)
@@ -263,17 +226,54 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  return results
+}
+
+export async function GET(req: NextRequest) {
+  const symbolsParam = req.nextUrl.searchParams.get("symbols")?.trim()
+  const singleSymbolParam = req.nextUrl.searchParams.get("symbol")?.trim()
+
+  if (!symbolsParam && !singleSymbolParam) {
+    return NextResponse.json({ error: "symbol or symbols is required" }, { status: 400 })
+  }
+
+  const isBatch = Boolean(symbolsParam)
+  const symbols = isBatch
+    ? symbolsParam!.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
+    : [singleSymbolParam!.toUpperCase()]
+
+  if (symbols.length === 0) {
+    return NextResponse.json(isBatch ? {} : { error: "No valid symbol provided" }, {
+      status: isBatch ? 200 : 400,
+    })
+  }
+
+  const results = await fetchStockQuotesServer(symbols)
+
   if (!isBatch) {
     const single = results[symbols[0]]
     if (!single) {
       return NextResponse.json({ error: "Could not fetch quote for " + symbols[0] }, { status: 502 })
     }
     return NextResponse.json(single, {
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
     })
   }
 
   return NextResponse.json(results, {
-    headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+    headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
   })
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}))
+    const symbols: string[] = Array.isArray(body?.symbols) ? body.symbols : []
+    const results = await fetchStockQuotesServer(symbols)
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, max-age=2, stale-while-revalidate=5" },
+    })
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
 }

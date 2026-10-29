@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { checkRateLimit, getClientIp, RateLimitStoreError } from "@/lib/rate-limit"
 import type { Tx } from "@/app/actions"
 import { isInvestmentTx } from "@/lib/finance"
 import { generateGeminiJson, type FinancialInsights } from "@/lib/gemini"
@@ -8,7 +8,7 @@ import { verifyTurnstileToken } from "@/lib/turnstile"
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req)
-    if (!checkRateLimit(`ai-insights:${ip}`, 10, 60_000)) {
+    if (!(await checkRateLimit(`ai-insights:${ip}`, 10, 60_000))) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Espera un momento antes de volver a solicitar un análisis." },
         { status: 429 }
@@ -226,6 +226,9 @@ Estructura JSON requerida (sin backticks ni markdown adicional):
     return NextResponse.json(fallbackResponse)
   } catch (err: any) {
     console.error("[ai-insights] Error:", err)
+    if (err instanceof RateLimitStoreError) {
+      return NextResponse.json({ error: err.message }, { status: 503 })
+    }
     return NextResponse.json(
       { error: "Error al procesar el análisis con IA. Inténtalo de nuevo." },
       { status: 500 }

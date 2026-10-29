@@ -40,7 +40,7 @@ const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false 
 const SQL = `
 CREATE TABLE IF NOT EXISTS transactions (
   "id"          SERIAL PRIMARY KEY,
-  "userId"      TEXT NOT NULL DEFAULT 'local-user',
+  "userId"      TEXT NOT NULL,
   "name"        TEXT NOT NULL,
   "category"    TEXT NOT NULL,
   "type"        TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE TABLE IF NOT EXISTS stock_positions (
   "id"        SERIAL PRIMARY KEY,
-  "userId"    TEXT NOT NULL DEFAULT 'local-user',
+  "userId"    TEXT NOT NULL,
   "symbol"    TEXT NOT NULL,
   "label"     TEXT NOT NULL,
   "shares"    NUMERIC(18, 6),
@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS stock_positions (
 );
 
 ALTER TABLE stock_positions ADD COLUMN IF NOT EXISTS "avgFxRate" NUMERIC(18, 6);
+ALTER TABLE transactions ALTER COLUMN "userId" DROP DEFAULT;
+ALTER TABLE stock_positions ALTER COLUMN "userId" DROP DEFAULT;
+
+CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+  "key" TEXT NOT NULL,
+  "windowStart" BIGINT NOT NULL,
+  "requestCount" INTEGER NOT NULL,
+  "expiresAt" BIGINT NOT NULL,
+  PRIMARY KEY ("key", "windowStart")
+);
 `
 
 ;(async () => {
@@ -70,6 +80,13 @@ ALTER TABLE stock_positions ADD COLUMN IF NOT EXISTS "avgFxRate" NUMERIC(18, 6);
   try {
     console.log("🗃️   Creando tabla transactions (si no existe)…")
     await client.query(SQL)
+    console.log("🗃️   Creando índices de transacciones y rate limits…")
+    await client.query(
+      'CREATE INDEX CONCURRENTLY IF NOT EXISTS transactions_user_occurred_id_idx ON transactions ("userId", "occurredAt" DESC, "id" DESC)'
+    )
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt")'
+    )
     console.log("✅  Tabla creada / ya existía. ¡Listo!")
   } finally {
     client.release()

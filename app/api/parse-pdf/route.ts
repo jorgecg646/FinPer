@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { classifyWithGemini, type ClassifyInput, type ClassifyResult } from "@/app/api/classify/route"
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { checkRateLimit, getClientIp, RateLimitStoreError } from "@/lib/rate-limit"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -318,7 +318,7 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 file uploads per minute per IP
     const ip = getClientIp(req)
-    if (!checkRateLimit(`parse-pdf:${ip}`, 5, 60_000)) {
+    if (!(await checkRateLimit(`parse-pdf:${ip}`, 5, 60_000))) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Espera un momento antes de subir otro archivo." },
         { status: 429 }
@@ -411,6 +411,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     console.error("[parse-file]", err)
+    if (err instanceof RateLimitStoreError) {
+      return NextResponse.json({ error: err.message }, { status: 503 })
+    }
     return NextResponse.json(
       { error: "Error al procesar el archivo. Asegúrate de que no está dañado ni protegido." },
       { status: 500 }

@@ -16,7 +16,10 @@ import {
 } from "lucide-react"
 
 
-import { createTransaction, createTransactionsBulk } from "@/app/actions"
+import {
+  createTransactionsBulk,
+  type TransactionImportResult,
+} from "@/app/actions"
 import type { ParsedTransaction } from "@/app/api/parse-pdf/route"
 
 const INCOME_CATS = [
@@ -260,7 +263,7 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
   const [fileName, setFileName] = useState("")
   const [txs, setTxs] = useState<EditableTx[]>([])
   const [filter, setFilter] = useState<Filter>("all")
-  const [importedCount, setImportedCount] = useState(0)
+  const [importResult, setImportResult] = useState<TransactionImportResult | null>(null)
   const [, startTransition] = useTransition()
 
   async function handleFile(file: File) {
@@ -306,13 +309,14 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
           category: tx.category,
           type: tx.type,
           amount: tx.amount,
-          occurredAt: new Date(tx.date).toISOString(),
+          occurredAt: tx.date,
+          rowNumber: txs.findIndex((row) => row.id === tx.id) + 1,
         }))
 
-        const count = await createTransactionsBulk(payload)
-        setImportedCount(count)
+        const result = await createTransactionsBulk(payload)
+        setImportResult(result)
         setStep("done")
-        window.dispatchEvent(new Event("data-mutated"))
+        if (result.accepted > 0) window.dispatchEvent(new Event("data-mutated"))
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al importar los movimientos")
         setStep("review")
@@ -334,6 +338,7 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
     setStep("upload")
     setTxs([])
     setError(null)
+    setImportResult(null)
     setFileName("")
     setFilter("all")
   }
@@ -504,16 +509,40 @@ export function ExcelImportModal({ onClose }: { onClose: () => void }) {
           )}
 
           {step === "done" && (
-            <div className="flex flex-col items-center justify-center gap-4 py-16">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-                <CheckCircle className="h-8 w-8 text-emerald-600" />
+            <div className="flex flex-col items-center justify-center gap-4 p-6">
+              <div className={`flex h-16 w-16 items-center justify-center rounded-full ${importResult?.rejected.length ? "bg-amber-100" : "bg-emerald-100"}`}>
+                {importResult?.rejected.length
+                  ? <AlertTriangle className="h-8 w-8 text-amber-600" />
+                  : <CheckCircle className="h-8 w-8 text-emerald-600" />}
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-foreground">¡Importación completada!</p>
+                <p className="text-lg font-bold text-foreground">
+                  {importResult?.accepted === 0
+                    ? "No se pudo importar ninguna fila"
+                    : importResult?.rejected.length
+                      ? "Importación parcial"
+                      : "¡Importación completada!"}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Se importaron <strong>{importedCount}</strong> transacciones correctamente.
+                  Se importaron <strong>{importResult?.accepted ?? 0}</strong> de{" "}
+                  <strong>{(importResult?.accepted ?? 0) + (importResult?.rejected.length ?? 0)}</strong> transacciones.
                 </p>
               </div>
+
+              {!!importResult?.rejected.length && (
+                <div className="w-full max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="mb-2 text-sm font-semibold text-amber-800">
+                    Filas no importadas
+                  </p>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-amber-800">
+                    {importResult.rejected.map((row) => (
+                      <li key={`${row.row}-${row.name}`}>
+                        Fila {row.row} ({row.name}): {row.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button
