@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { resolveTradingViewLogoId } from "@/lib/tradingview-symbol"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,27 +25,6 @@ export interface StockPriceResult {
 // In-memory cache for live stock quotes (2s TTL matching market-indices)
 const priceCache = new Map<string, { timestamp: number; data: StockPriceResult }>()
 const CACHE_TTL_MS = 2_000
-
-function resolveTradingViewLogoId(
-  symbol: string,
-  logoid?: string | null,
-  baseCurrencyLogoid?: string | null
-): string {
-  if (typeof logoid === "string" && logoid.trim()) return logoid.trim()
-  if (typeof baseCurrencyLogoid === "string" && baseCurrencyLogoid.trim()) return baseCurrencyLogoid.trim()
-
-  const sym = symbol.toUpperCase()
-  if (/USOIL|UKOIL|BRENT|WTI|CRUDE|CL1!|BB1!|BZ1!|WTICOUSD|BCOUSD/.test(sym)) {
-    return "crude-oil"
-  }
-  // Crypto fallback mappings for TradingView SVG logos
-  const cryptoMatch = sym.match(/(?:BINANCE:|CRYPTO:|COINBASE:|BITSTAMP:|OKX:|BYBIT:|KRAKEN:)?([A-Z0-9]+)(?:USDT|USD|EUR|BTC|ETH)?$/)
-  const base = cryptoMatch ? cryptoMatch[1] : ""
-  if (base && ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK", "NEAR", "SUI", "PEPE", "SHIB", "TRX", "LTC", "BCH", "UNI", "MATIC", "POL", "APT", "RENDER", "ICP", "FET", "FIL", "ATOM", "XLM", "MONERO", "XMR", "KAS", "TON"].includes(base)) {
-    return `crypto/XTVC${base}`
-  }
-  return ""
-}
 
 // Helper to fetch fallback via isolated quote session
 async function fetchFallbackQuote(symbol: string): Promise<StockPriceResult> {

@@ -284,6 +284,27 @@
           "text": "El borrado de la cookie heredada finflow_user_id ahora siempre incluye Secure y conserva path, max-age=0 y SameSite=Lax. TypeScript y build de producción pasan. En desarrollo HTTP el navegador puede no permitir borrar una cookie Secure; la cookie de sesión firmada no se modifica."
         }
       ]
+    },
+    {
+      "id": "CI-04",
+      "title": "Eliminar regex vulnerable en símbolo bursátil",
+      "state": "review",
+      "group": "CI",
+      "at": "2026-10-29T18:14:48Z",
+      "by": "agent",
+      "desc": "Resolver la alerta CodeQL de posible regex polynomial en app/api/stock-price/route.ts:41, donde se analiza un símbolo externo para deducir el logo. Sustituirla por parseo acotado y determinista o una expresión segura, conservando el reconocimiento de pares y prefijos actuales. Añadir pruebas para símbolos válidos y entradas largas/repetitivas, y confirmar que CodeQL deja de señalar el flujo.",
+      "notes": [
+        {
+          "at": "2026-10-29T18:15:47Z",
+          "by": "agent",
+          "text": "Plan: reemplazar el regex por un parser lineal y de longitud acotada para prefijos y sufijos de mercados, cubrir símbolos válidos y entradas repetitivas con pruebas, y volver a publicar la rama de la PR."
+        },
+        {
+          "at": "2026-10-29T18:17:59Z",
+          "by": "agent",
+          "text": "Eliminé la expresión regular del análisis de símbolos: ahora se limita la entrada a 128 caracteres y se extraen prefijos/sufijos con operaciones lineales deterministas. Se conservan los logos de criptomonedas, materias primas y metadatos de TradingView; añadí pruebas para símbolos válidos y cadenas largas repetitivas. npm test (16), TypeScript y build pasan. CodeQL volverá a ejecutarse al subir la rama."
+        }
+      ]
     }
   ]
 }
