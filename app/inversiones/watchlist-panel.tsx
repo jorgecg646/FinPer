@@ -23,7 +23,7 @@ import { useStockQuotes } from "./stock-quotes-context"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-import { PANEL_W, COLLAPSED_KEY, TOGGLE_EVENT, WatchlistContentOffset } from "./watchlist-content-offset"
+import { PANEL_W, TOGGLE_EVENT, WatchlistContentOffset } from "./watchlist-content-offset"
 export { WatchlistContentOffset }
 
 const STORAGE_KEY = "finper_watchlist_v3"
@@ -790,12 +790,6 @@ export function WatchlistPanel() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) setGroups(JSON.parse(stored))
-      const col = localStorage.getItem(COLLAPSED_KEY)
-      if (col !== null) {
-        setPanelCollapsed(JSON.parse(col))
-      } else {
-        setPanelCollapsed(true)
-      }
     } catch {}
   }, [])
 
@@ -806,7 +800,6 @@ export function WatchlistPanel() {
   function togglePanel() {
     setPanelCollapsed((prev) => {
       const next = !prev
-      try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)) } catch {}
       queueMicrotask(() => {
         window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: next }))
       })

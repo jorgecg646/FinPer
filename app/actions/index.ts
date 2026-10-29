@@ -1,11 +1,18 @@
 "use server"
 
 import { and, desc, eq, inArray } from "drizzle-orm"
+import { cache } from "react"
 import { revalidatePath } from "next/cache"
 import { cookies } from "next/headers"
 import { isInvestmentTx } from "@/lib/finance"
 import { calculateSummary, type Summary } from "@/lib/finance-summary"
-import { normalizeCategory, validateTransactionInput } from "@/lib/transaction-validation"
+import {
+  normalizeCategory,
+  validateTransactionDate,
+  validateTransactionImport,
+  validateTransactionInput,
+  type TransactionImportRejection as ImportRejection,
+} from "@/lib/transaction-validation"
 import { db, stockPositions, transactions } from "@/lib/db"
 import { getSessionSecret, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session"
 
@@ -50,6 +57,14 @@ export type TxInput = {
   occurredAt?: string
 }
 
+export type TransactionImportInput = TxInput & { rowNumber?: number }
+export type TransactionImportRejection = ImportRejection
+
+export type TransactionImportResult = {
+  accepted: number
+  rejected: TransactionImportRejection[]
+}
+
 export type StockPosition = {
   id: number
   symbol: string
@@ -89,10 +104,9 @@ function toTx(row: typeof transactions.$inferSelect): Tx {
 // Transaction actions — Cached & Optimized
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function getTransactions(): Promise<Tx[]> {
+const getTransactionsForRequest = cache(async (): Promise<Tx[]> => {
   const activeUserId = await getActiveUserId()
 
-  // Fetch fresh data from DB (guarantees multi-device real-time sync)
   const rows = await db
     .select()
     .from(transactions)
@@ -100,6 +114,10 @@ export async function getTransactions(): Promise<Tx[]> {
     .orderBy(desc(transactions.occurredAt), desc(transactions.id))
   
   return rows.map(toTx)
+})
+
+export async function getTransactions(): Promise<Tx[]> {
+  return getTransactionsForRequest()
 }
 
 export async function getSummary(targetYear?: number): Promise<Summary> {
@@ -129,13 +147,14 @@ export async function createTransaction(input: TxInput) {
   const activeUserId = await getActiveUserId()
   if (!activeUserId) return
   const { name, category, type, amount } = validateTransactionInput(input)
+  const occurredAt = validateTransactionDate(input.occurredAt)
   await db.insert(transactions).values({
     userId: activeUserId,
     name,
     category,
     type,
     amount: amount.toFixed(2),
-    occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
+    occurredAt,
   })
   revalidateAllPaths()
 }
@@ -144,9 +163,12 @@ export async function updateTransaction(id: number, input: TxInput) {
   const activeUserId = await getActiveUserId()
   if (!activeUserId) return
   const { name, category, type, amount } = validateTransactionInput(input)
+  const occurredAt = input.occurredAt === undefined
+    ? undefined
+    : validateTransactionDate(input.occurredAt)
   await db
     .update(transactions)
-    .set({ name, category, type, amount: amount.toFixed(2), ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}) })
+    .set({ name, category, type, amount: amount.toFixed(2), ...(occurredAt ? { occurredAt } : {}) })
     .where(and(eq(transactions.id, id), eq(transactions.userId, activeUserId)))
   revalidateAllPaths()
 }
@@ -158,39 +180,29 @@ export async function deleteTransaction(id: number) {
   revalidateAllPaths()
 }
 
-export async function createTransactionsBulk(inputs: TxInput[]) {
-  if (!inputs.length) return 0
+export async function createTransactionsBulk(inputs: TransactionImportInput[]): Promise<TransactionImportResult> {
+  if (!inputs.length) return { accepted: 0, rejected: [] }
   const activeUserId = await getActiveUserId()
+  const { accepted, rejected } = validateTransactionImport(inputs)
+  if (!accepted.length) return { accepted: 0, rejected }
 
-  const records = []
-  for (const input of inputs) {
-    try {
-      const { name, category, type, amount } = validateTransactionInput(input)
-      const occurredDate = input.occurredAt ? new Date(input.occurredAt) : new Date()
-      records.push({
-        userId: activeUserId,
-        name,
-        category,
-        type,
-        amount: amount.toFixed(2),
-        occurredAt: !isNaN(occurredDate.getTime()) ? occurredDate : new Date(),
-      })
-    } catch {
-      // Omitir fila inválida puntual sin anular el resto del lote
-    }
-  }
-
-  if (!records.length) return 0
-
-  // Insert all in chunks of 500 to avoid query size limits
   const CHUNK_SIZE = 500
-  for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-    const chunk = records.slice(i, i + CHUNK_SIZE)
-    await db.insert(transactions).values(chunk)
-  }
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < accepted.length; i += CHUNK_SIZE) {
+      const records = accepted.slice(i, i + CHUNK_SIZE).map((record) => ({
+        userId: activeUserId,
+        name: record.name,
+        category: record.category,
+        type: record.type,
+        amount: record.amount.toFixed(2),
+        occurredAt: record.occurredAt,
+      }))
+      await tx.insert(transactions).values(records)
+    }
+  })
 
   revalidateAllPaths()
-  return records.length
+  return { accepted: accepted.length, rejected }
 }
 
 export async function deleteTransactionsBulk(ids: number[]) {

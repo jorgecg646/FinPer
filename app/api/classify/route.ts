@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateGeminiJson } from "@/lib/gemini"
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { checkRateLimit, getClientIp, RateLimitStoreError } from "@/lib/rate-limit"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -435,7 +435,7 @@ export async function POST(req: NextRequest) {
 
     // Rate limit: 20 requests per minute per IP
     const ip = getClientIp(req)
-    if (!checkRateLimit(`classify:${ip}`, 20, 60_000)) {
+    if (!(await checkRateLimit(`classify:${ip}`, 20, 60_000))) {
       return NextResponse.json({ error: "Demasiadas peticiones. Inténtalo en un momento." }, { status: 429 })
     }
 
@@ -470,6 +470,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results })
   } catch (err) {
     console.error("[classify] Error:", err)
+    if (err instanceof RateLimitStoreError) {
+      return NextResponse.json({ error: err.message }, { status: 503 })
+    }
     return NextResponse.json({ error: "Error al clasificar las transacciones" }, { status: 500 })
   }
 }

@@ -2,8 +2,6 @@
 
 import { useState, useEffect, type ReactNode } from "react"
 
-// These constants must match watchlist-panel.tsx
-export const COLLAPSED_KEY = "finper_watchlist_collapsed_v2"
 export const TOGGLE_EVENT = "finper-watchlist-toggle"
 export const PANEL_W = 272
 
@@ -13,11 +11,6 @@ export function WatchlistContentOffset({ children }: { children: ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(COLLAPSED_KEY)
-      if (stored !== null) setCollapsed(JSON.parse(stored))
-    } catch {}
-
     const mql = window.matchMedia("(min-width: 1280px)")
     setIsDesktop(mql.matches)
     const mediaHandler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)

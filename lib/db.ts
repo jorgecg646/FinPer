@@ -1,17 +1,27 @@
 import { drizzle } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
-import { numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
+import { index, numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
 
-export const transactions = pgTable("transactions", {
-  id: serial("id").primaryKey(),
-  userId: text("userId").notNull(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  type: text("type").notNull(),
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  occurredAt: timestamp("occurredAt", { withTimezone: true }).notNull().defaultNow(),
-  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-})
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("userId").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    type: text("type").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    occurredAt: timestamp("occurredAt", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("transactions_user_occurred_id_idx").on(
+      table.userId,
+      table.occurredAt.desc(),
+      table.id.desc()
+    ),
+  ]
+)
 
 export const stockPositions = pgTable("stock_positions", {
   id: serial("id").primaryKey(),

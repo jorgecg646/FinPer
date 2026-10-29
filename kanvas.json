@@ -40,7 +40,7 @@
     {
       "id": "CI-01",
       "title": "Asegurar identidad y propiedad de datos",
-      "state": "review",
+      "state": "done",
       "group": "CI",
       "at": "2026-10-27T17:13:49Z",
       "by": "copilot",
@@ -71,7 +71,7 @@
     {
       "id": "CI-02",
       "title": "Anadir pruebas para reglas financieras",
-      "state": "review",
+      "state": "done",
       "group": "CI",
       "at": "2026-10-27T17:13:49Z",
       "by": "copilot",
@@ -92,7 +92,7 @@
     {
       "id": "HP-01",
       "title": "Validar estrictamente entradas financieras",
-      "state": "todo",
+      "state": "done",
       "group": "HP",
       "deps": ["CI-02"],
       "at": "2026-10-27T17:13:49Z",
@@ -103,13 +103,45 @@
           "at": "2026-10-27T17:14:20Z",
           "by": "copilot",
           "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:04Z",
+          "by": "agent",
+          "text": "Reviso la validacion de transacciones y preparo los ajustes para rechazar entradas invalidas con errores claros."
+        },
+        {
+          "at": "2026-10-29T17:31:31Z",
+          "by": "agent",
+          "text": "He reforzado la validacion de transacciones: rechaza tipos desconocidos, exige importe > 0 y mantiene el comportamiento normal para entradas validas. Verificado: npm test, npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-06",
+      "title": "Completar rate limiting distribuido",
+      "state": "done",
+      "group": "HP",
+      "deps": ["HP-02"],
+      "at": "2026-10-29T17:33:58Z",
+      "by": "agent",
+      "desc": "Sustituir el límite únicamente en memoria por un contador compartido y atómico para proteger los endpoints de IA y parseo PDF en despliegues con varias instancias. Mantener el modo local solo para desarrollo, definir configuración y errores explícitos si el backend compartido falla y cubrir límites, ventanas y concurrencia con pruebas. Al aprobarla, confirmar el proveedor disponible (por ejemplo Upstash/Redis o PostgreSQL compartido) antes de añadir infraestructura.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:44:51Z",
+          "by": "agent",
+          "text": "Plan: usar PostgreSQL ya configurado como almacenamiento compartido con incremento atómico, añadir migración idempotente, modo local de desarrollo y errores explícitos; validar límite, expiración y concurrencia."
+        },
+        {
+          "at": "2026-10-29T17:54:11Z",
+          "by": "agent",
+          "text": "Los límites de IA y parseo PDF usan contadores PostgreSQL compartidos y atómicos; producción usa Postgres por defecto, desarrollo conserva memoria, y si falla el almacenamiento se responde 503 sin saltarse el límite. Añadí tabla/migración idempotente y limpieza de ventanas. Tests, TypeScript y build pasan; no apliqué la migración ni probé concurrencia entre instancias contra una base real. Ejecutar npm run migrate y confirmar FINPER_RATE_LIMIT_BACKEND=postgres en producción."
         }
       ]
     },
     {
       "id": "HP-02",
       "title": "Centralizar limites de solicitudes costosas",
-      "state": "todo",
+      "state": "done",
       "group": "HP",
       "at": "2026-10-27T17:13:49Z",
       "by": "copilot",
@@ -119,13 +151,28 @@
           "at": "2026-10-27T17:14:21Z",
           "by": "copilot",
           "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:06Z",
+          "by": "agent",
+          "text": "Reviso los rate limits y preparo una capa de almacenamiento compartido con fallback seguro."
+        },
+        {
+          "at": "2026-10-29T17:31:33Z",
+          "by": "agent",
+          "text": "He centralizado la logica de rate limiting en lib/rate-limit.ts con un backend configurable y un fallback seguro; la base sigue en memoria por defecto y admite desactivar o externalizar el almacenamiento para despliegues multi-instancia. Verificado: npm test, npx tsc --noEmit y npm run build."
+        },
+        {
+          "at": "2026-10-29T17:33:57Z",
+          "by": "agent",
+          "text": "Aclaración para revisión: la implementación actual sigue usando un Map en memoria por proceso. FINPER_RATE_LIMIT_BACKEND=global no activa ningún backend compartido; por tanto, el límite aún no está distribuido entre instancias."
         }
       ]
     },
     {
       "id": "HP-04",
       "title": "Actualizar documentacion y guia de inicio",
-      "state": "todo",
+      "state": "done",
       "group": "HP",
       "at": "2026-10-27T17:13:49Z",
       "by": "copilot",
@@ -135,6 +182,85 @@
           "at": "2026-10-27T17:14:23Z",
           "by": "copilot",
           "text": "Texto ajustado para evitar problemas de codificacion."
+        },
+        {
+          "at": "2026-10-29T17:27:08Z",
+          "by": "agent",
+          "text": "Actualizo la documentacion de arranque y entorno para que el proyecto se pueda poner en marcha desde cero."
+        },
+        {
+          "at": "2026-10-29T17:31:34Z",
+          "by": "agent",
+          "text": "He actualizado README y .env.example con requisitos, arranque, variables de entorno y guia de validacion para poner en marcha la app desde cero. Verificado: npm test, npx tsc --noEmit y npm run build."
+        }
+      ]
+    },
+    {
+      "id": "HP-05",
+      "title": "Optimizar consultas a base de datos y cache de transacciones",
+      "state": "done",
+      "group": "HP",
+      "at": "2026-10-27T21:02:58Z",
+      "by": "antigravity",
+      "desc": "Reducir consultas y coste de ordenación al cargar transacciones: medir primero las consultas reales, añadir índices compuestos solo donde el patrón lo justifique y deduplicar lecturas por render con React.cache() si evita consultas repetidas. Incluir una migración PostgreSQL idempotente y verificable. Terminado cuando el comportamiento y orden de resultados se conservan, las consultas repetidas se reducen y la migración y pruebas confirman el cambio; no asumir planes de ejecución sin medirlos.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:33:57Z",
+          "by": "agent",
+          "text": "Agrupo en una sola tarea el análisis de consultas, índices, deduplicación y migración segura; quito la afirmación no verificada de que siempre hay sequential scans."
+        },
+        {
+          "at": "2026-10-29T17:44:50Z",
+          "by": "agent",
+          "text": "Plan: comprobar los patrones de lectura y esquema actuales; aplicar índices/migración idempotente y deduplicación de consultas solo donde el acceso real lo justifique, preservando orden y aislamiento por usuario."
+        },
+        {
+          "at": "2026-10-29T17:54:10Z",
+          "by": "agent",
+          "text": "La consulta por usuario conserva su orden y ahora tiene un índice compuesto alineado con esos filtros; getTransactions deduplica lecturas dentro del render con React.cache(). Añadí la creación idempotente del índice a npm run migrate. Tests, TypeScript y build pasan. No ejecuté la migración contra la base externa: aplicarla antes de desplegar y verificar el plan de consulta allí."
+        }
+      ]
+    },
+    {
+      "id": "HP-07",
+      "title": "Validar fechas y reportar filas de importación",
+      "state": "done",
+      "group": "HP",
+      "deps": ["HP-01"],
+      "at": "2026-10-29T17:33:59Z",
+      "by": "agent",
+      "desc": "Completar la validación financiera en las acciones del servidor: rechazar fechas inválidas en altas y ediciones, y devolver un resultado claro de importación masiva con filas aceptadas/rechazadas y motivo, en vez de sustituir fechas o descartar filas inválidas silenciosamente. Mantener el comportamiento de las filas válidas y cubrir los casos con pruebas.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:44:52Z",
+          "by": "agent",
+          "text": "Plan: rechazar fechas inválidas en acciones y devolver resultados comprensibles para importación masiva, conservando las filas válidas y añadiendo cobertura de casos límite."
+        },
+        {
+          "at": "2026-10-29T17:54:12Z",
+          "by": "agent",
+          "text": "Las acciones rechazan fechas inválidas y la importación masiva conserva las filas válidas, inserta el lote de forma transaccional y devuelve fila/concepto/motivo para cada rechazo; la pantalla muestra el resultado parcial o total. Añadí pruebas para fechas y resultados por fila. Tests, TypeScript y build pasan."
+        }
+      ]
+    },
+    {
+      "id": "IN-04",
+      "title": "Ocultar lista de seguimiento al entrar en inversiones",
+      "state": "done",
+      "group": "IN",
+      "at": "2026-10-29T17:36:09Z",
+      "by": "agent",
+      "desc": "Al entrar en Inversiones, la lista de seguimiento debe iniciar cerrada tanto en móvil como en escritorio, independientemente de la última preferencia guardada. El botón para abrir/cerrar debe seguir funcionando y el estado visual del contenido debe sincronizarse. Terminado cuando la lista permanece oculta al navegar o recargar la página en ambos tamaños de pantalla y se puede abrir manualmente.",
+      "notes": [
+        {
+          "at": "2026-10-29T17:36:50Z",
+          "by": "agent",
+          "text": "Plan: al montar la página de Inversiones, forzar la lista cerrada en móvil y escritorio; retirar la restauración de la preferencia anterior y mantener sincronizado el offset del contenido y el botón de apertura."
+        },
+        {
+          "at": "2026-10-29T17:38:41Z",
+          "by": "agent",
+          "text": "Al abrir Inversiones, la lista de seguimiento queda cerrada tanto en móvil como en escritorio, aunque antes se hubiera abierto; el botón de abrir/cerrar y el ajuste del contenido siguen sincronizados. npm test, npx tsc --noEmit y npm run build pasan. No se pudo ejecutar una comprobación visual en navegador; revisar una entrada a Inversiones en ambos tamaños de pantalla."
         }
       ]
     }

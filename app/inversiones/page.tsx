@@ -45,10 +45,10 @@ export default async function InversionesPage({ searchParams }: { searchParams: 
   return (
     <LayoutShell balance={summary.balance} currencySymbol={currencySymbol}>
       <StockQuotesProvider initialSymbols={stockPositions.map((p) => p.symbol)}>
-        {/* Watchlist sidebar — visible en escritorio */}
+        {/* Watchlist sidebar — collapsed by default on all screen sizes */}
         <WatchlistPanel />
 
-        {/* Padding dinámico — se expande cuando el watchlist está cerrado */}
+        {/* Dynamic padding keeps the content clear when the watchlist is opened */}
         <WatchlistContentOffset>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <header className="flex items-center gap-4">

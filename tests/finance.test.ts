@@ -3,7 +3,11 @@ import test from "node:test"
 import { calculateSummary } from "../lib/finance-summary"
 import { filterInvestments, filterLivingExpenses, isInvestmentTx } from "../lib/finance"
 import { fmtCurrency, getFallbackFxRate } from "../lib/format"
-import { validateTransactionInput } from "../lib/transaction-validation"
+import {
+  validateTransactionDate,
+  validateTransactionImport,
+  validateTransactionInput,
+} from "../lib/transaction-validation"
 
 test("validates and normalizes a transaction", () => {
   assert.deepEqual(
@@ -27,17 +31,57 @@ test("validates and normalizes a transaction", () => {
   )
 })
 
-test("rejects blank names and non-positive or non-finite amounts", () => {
+test("rejects blank names, unknown types and non-positive or non-finite amounts", () => {
   assert.throws(
     () => validateTransactionInput({ name: "  ", category: "General", type: "expense", amount: 1 }),
     /nombre es obligatorio/
   )
-  for (const amount of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+  assert.throws(
+    () => validateTransactionInput({ name: "Compra", category: "Hogar", type: "transfer", amount: 1 }),
+    /tipo de transacci[oó]n.*income.*expense/i
+  )
+  for (const amount of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(
       () => validateTransactionInput({ name: "Compra", category: "Hogar", type: "expense", amount }),
       /importe debe ser mayor que 0/
     )
   }
+})
+
+test("validates optional transaction dates and rejects invalid calendar days", () => {
+  assert.equal(validateTransactionDate(undefined, new Date("2025-01-02T00:00:00Z")).toISOString(), "2025-01-02T00:00:00.000Z")
+  assert.equal(validateTransactionDate("2024-02-29").toISOString(), "2024-02-29T00:00:00.000Z")
+  for (const date of ["2025-02-29", "2024-13-01", "not-a-date", ""]) {
+    assert.throws(() => validateTransactionDate(date), /fecha.*(obligatoria|válida)/i)
+  }
+})
+
+test("reports invalid import rows while preserving valid transactions and source row numbers", () => {
+  const result = validateTransactionImport([
+    {
+      rowNumber: 4,
+      name: "Compra",
+      category: "Hogar",
+      type: "expense",
+      amount: 25,
+      occurredAt: "2025-02-28",
+    },
+    {
+      rowNumber: 9,
+      name: "Nómina",
+      category: "Sueldo",
+      type: "income",
+      amount: 1200,
+      occurredAt: "2025-02-30",
+    },
+  ])
+
+  assert.equal(result.accepted.length, 1)
+  assert.equal(result.accepted[0].row, 4)
+  assert.equal(result.accepted[0].occurredAt.toISOString(), "2025-02-28T00:00:00.000Z")
+  assert.deepEqual(result.rejected, [
+    { row: 9, name: "Nómina", reason: "La fecha de la transacción no es válida" },
+  ])
 })
 
 test("classifies investment transactions and separates living expenses", () => {
