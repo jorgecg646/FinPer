@@ -357,6 +357,27 @@
           "text": "Ahora puedes abrir la gráfica TradingView pulsando la acción en seguimiento; solo los seis puntos permiten reordenarla y la ventana queda por encima del panel. Verificado con TypeScript y los 19 tests. Comprueba en Inversiones que una acción abre su gráfica y que arrastrar desde el asa cambia su orden."
         }
       ]
+    },
+    {
+      "id": "HP-08",
+      "title": "Evitar datos en cero al restaurar la sesión",
+      "state": "review",
+      "group": "HP",
+      "at": "2026-11-06T11:07:11Z",
+      "by": "copilot",
+      "desc": "Cuando se restaura o renueva la sesión de Netlify, actualizar los datos ya cargados por el servidor para que Inicio y las demás pantallas no se queden mostrando el resultado vacío de una consulta hecha antes de autenticar. Verificar inicio de sesión, sesión ya activa al abrir, modo invitado y navegación entre pantallas; los datos deben aparecer sin necesitar salir y volver a entrar.",
+      "notes": [
+        {
+          "at": "2026-11-06T11:08:11Z",
+          "by": "copilot",
+          "text": "Plan: seguir el ciclo de restauración de la sesión y el refresco del Router Cache; asegurar que se revaliden las pantallas al completar o renovar autenticación y validar con pruebas/build."
+        },
+        {
+          "at": "2026-11-06T11:16:12Z",
+          "by": "copilot",
+          "text": "Los datos de las pantallas se vuelven a consultar al completar/restaurar o renovar la sesión y al cerrar sesión, evitando quedarse con el resultado vacío o con datos de una cuenta anterior. La renovación al volver a la pestaña evita refrescos simultáneos. Verificado: compilación de tipos correcta y 19 pruebas aprobadas. Comprueba en la app que una cuenta con movimientos muestra sus datos después de iniciar sesión y que al cerrar sesión no quedan esos datos visibles."
+        }
+      ]
     }
   ]
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import Script from "next/script"
 
 export type NetlifyUser = {
@@ -98,6 +99,7 @@ async function syncServerSession(token?: string) {
 }
 
 export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const [user, setUser] = useState<NetlifyUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -146,6 +148,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
           }
           await syncServerSession(accessToken)
           updateUserState(parsed)
+          router.refresh()
         } catch (error) {
           console.error("Could not establish a secure user session:", error)
           try {
@@ -184,8 +187,12 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
       widget.on("logout", async () => {
         cleanupWidgetIframe()
         try {
-          await fetch("/api/auth/session", { method: "DELETE" })
-        } catch {}
+          const response = await fetch("/api/auth/session", { method: "DELETE" })
+          if (!response.ok) throw new Error(`Session logout failed (${response.status})`)
+          router.refresh()
+        } catch (error) {
+          console.error("Could not clear the server session:", error)
+        }
         updateUserState(null)
       })
 
@@ -234,14 +241,26 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     }
 
     // 3. Proactively refresh token in background on tab focus
+    let isRefreshingSession = false
     const handleFocus = () => {
+      if (isRefreshingSession) return
       const widget = getWidget()
       if (!widget) return
       const currentUser = widget.currentUser()
       if (currentUser && typeof currentUser.jwt === "function") {
-        currentUser.jwt().then((freshToken: string) => {
-          if (freshToken) syncServerSession(freshToken).catch(() => {})
-        }).catch(() => {})
+        isRefreshingSession = true
+        void (async () => {
+          try {
+            const freshToken: string = await currentUser.jwt()
+            if (!freshToken) return
+            await syncServerSession(freshToken)
+            router.refresh()
+          } catch (error) {
+            console.warn("Could not refresh the secure user session:", error)
+          } finally {
+            isRefreshingSession = false
+          }
+        })()
       }
     }
 
@@ -269,6 +288,7 @@ export function NetlifyAuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch("/api/auth/session", { method: "DELETE" })
       if (!response.ok) throw new Error(`Session logout failed (${response.status})`)
+      router.refresh()
       const widget = getWidget()
       if (widget) widget.logout()
       updateUserState(null)
